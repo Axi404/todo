@@ -104,26 +104,31 @@ test("normalize writes the details the database keeps one way in that way: no em
 test("a change writes only the rows it changed; state kept next to the board (getMeta / setMeta) does not touch rev and stays", () => {
   const dir = tmp(), s = openStore(dir);
   s.replaceAll(FULL);
-  // count the writes, with triggers added on a connection of their own
+  // count the writes, with triggers added on a connection of their own; rev and updatedAt change with every change (updatedAt
+  // not within the same millisecond), so they are left out of the count
   const raw = new DatabaseSync(join(dir, "todo.db"));
   raw.exec("CREATE TABLE writes (what TEXT)");
   for (const t of ["sections", "cards", "items", "check_ins", "places", "meta"]) for (const op of ["INSERT", "UPDATE", "DELETE"]) {
-    raw.exec(`CREATE TRIGGER count_${op}_${t} AFTER ${op} ON ${t} BEGIN INSERT INTO writes VALUES ('${op} ${t}'); END`);
+    const when = t === "meta" ? `WHEN ${op === "DELETE" ? "OLD" : "NEW"}.key NOT IN ('rev', 'updatedAt')` : "";
+    raw.exec(`CREATE TRIGGER count_${op}_${t} AFTER ${op} ON ${t} ${when} BEGIN INSERT INTO writes VALUES ('${op} ${t}'); END`);
   }
   const writes = () => raw.prepare("DELETE FROM writes RETURNING what").all().map((r) => r.what).sort();
   const change = (fn) => s.mutate((d) => (fn(d), { op: "test" }));
   change((d) => { d.items.find((i) => i.id === "a").note = "changed"; });
-  assert.deepEqual(writes(), ["UPDATE items", "UPDATE meta", "UPDATE meta"], "the item, rev and updatedAt");
+  assert.deepEqual(writes(), ["UPDATE items"]);
   change((d) => checkDate(d.items.find((i) => i.id === "e"), "2026-10-21"));
-  assert.deepEqual(writes(), ["INSERT check_ins", "UPDATE items", "UPDATE meta", "UPDATE meta"]);
+  assert.deepEqual(writes(), ["INSERT check_ins", "UPDATE items"]);
   change((d) => { d.items = d.items.filter((i) => i.id !== "d"); });
-  assert.deepEqual(writes(), ["DELETE check_ins", "DELETE check_ins", "DELETE check_ins", "DELETE items", "UPDATE meta", "UPDATE meta"]);
+  assert.deepEqual(writes(), ["DELETE check_ins", "DELETE check_ins", "DELETE check_ins", "DELETE items"]);
+  change((d) => { d.theme.mode = "light"; });
+  assert.deepEqual(writes(), ["UPDATE meta"]);
   raw.close();
+  assert.equal(s.load().rev, FULL.rev + 4);
 
   const rev = s.load().rev;
   s.setMeta("canvasSync", { ok: true, result: { added: 1 } });
   assert.equal(s.load().rev, rev);
-  change((d) => { d.theme.mode = "light"; });
+  change((d) => { d.theme.mode = "auto"; });
   s.replaceAll(FULL);
   assert.deepEqual(s.getMeta("canvasSync"), { ok: true, result: { added: 1 } }, "kept through changes and imports");
   assert.equal(s.getMeta("nothing"), undefined);
