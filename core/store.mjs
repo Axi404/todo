@@ -113,12 +113,13 @@ export function openStore(dir = dataDir()) {
   }
   const cache = new Map(), sql = (text) => cache.get(text) ?? cache.set(text, db.prepare(text)).get(text);
 
-  // BEGIN IMMEDIATE takes the write lock at the start: another process waits for it (busy_timeout) rather than failing halfway
+  // BEGIN IMMEDIATE takes the write lock at the start: another process waits for it (busy_timeout) rather than failing halfway.
+  // fn may end the transaction itself with ROLLBACK
   function transaction(fn) {
     db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
-      db.exec("COMMIT");
+      if (db.isTransaction) db.exec("COMMIT");
       return result;
     } catch (err) {
       if (db.isTransaction) db.exec("ROLLBACK");
@@ -177,7 +178,7 @@ export function openStore(dir = dataDir()) {
       const out = fn(doc);
       if (out instanceof Promise) throw new Error("mutate: fn returned a promise; it must change the document synchronously");
       const logs = [out].flat().filter(Boolean);
-      if (!logs.length) return docOf(before); // nothing changed: the transaction ends without having written anything, rev stays
+      if (!logs.length) { db.exec("ROLLBACK"); return docOf(before); } // nothing changed: nothing is written, and rev stays the same
       doc.rev += 1;
       doc.updatedAt = nowIso();
       const after = rowsOf(normalize(doc));
