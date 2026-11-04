@@ -69,24 +69,59 @@ let badFonts = await cjkFonts();
 check("fonts: all Chinese text uses the Chinese body text fonts (it does not turn into NSimSun on Windows)", !badFonts.length, badFonts.slice(0, 3).join(" | "));
 check('fonts: "挂了…上次看…" and "挂在…" on an agent card use the same font', await ev(`(() => { const c = document.querySelector('[data-agent-card]'); const f = (s) => getComputedStyle(c.querySelector(s)).fontFamily; return f('.where') === f('.when') })()`));
 
-// 2. status menu: click to open, click again to close
+// 2. status menu: click to open, click again to close; it opens out of the pill with its rows coming in one after another,
+// and fades out when closed
 let d = await doc();
 const plain = d.items.find((i) => i.status === "todo" && !i.repeat && !i.due);
-await click(`${row(plain.title)}.querySelector('.pill')`); await sleep(150);
+const popAnims = `(document.querySelector('.pop')?.getAnimations({ subtree: true }) ?? []).map((a) => a.animationName ?? "")`;
+await click(`${row(plain.title)}.querySelector('.pill')`); await sleep(30);
+check("the status menu opens out of the pill, its rows one after another", await ev(`(() => { const rows = [...document.querySelectorAll('.pop > .opt')];
+  return ${popAnims}.includes("pop-in") && ${popAnims}.includes("pop-row") && new Set(rows.map((r) => getComputedStyle(r).animationDelay)).size === rows.length })()`));
+await sleep(500);
 check("the status menu opens", (await ev(`document.querySelectorAll('.pop .opt').length`)) >= 8);
-await click(`${row(plain.title)}.querySelector('.pill')`); await sleep(150);
-check("a second click closes it", !(await ev(`!!document.querySelector('.pop')`)));
+check("…and nothing is still moving once it is open", (await ev(`${popAnims}.length`)) === 0, JSON.stringify(await ev(popAnims)));
+const agentOpt = await ev(`(() => { const b = ${opt("Agent 在做")}.getBoundingClientRect(); return { x: b.left + 40, y: b.top + b.height / 2 } })()`);
+await page.mouse("mouseMoved", agentOpt.x, agentOpt.y); await sleep(200);
+check('hovering "Agent 在做" turns its gear', await ev(`document.querySelector('.pop .opt.s-agent .si').getAnimations().some((a) => a.animationName === "gear-turn")`));
+await page.mouse("mouseMoved", 5, 5);
+await click(`${row(plain.title)}.querySelector('.pill')`); await sleep(30);
+check("a second click closes it: it fades out and cannot be clicked meanwhile", await ev(`(() => { const p = document.querySelector('.pop'); return !!p && p.classList.contains('leaving') && getComputedStyle(p).pointerEvents === "none" && ${popAnims}.includes("pop-out") })()`));
+check("…then it is gone", await waitFor(`!document.querySelector('.pop')`, 1000));
 
 // 3. hand off to an agent: click a place
 const place = d.places?.[0]?.name;
 await click(`${row(plain.title)}.querySelector('.pill')`); await sleep(150);
-await click(opt("Agent 在做")); await sleep(200);
+const menuW = await ev(`document.querySelector('.pop').offsetWidth`);
+await click(opt("Agent 在做")); await sleep(40);
+check('choosing "Agent 在做": the menu morphs into the question, from its size to the new one', await ev(`(() => { const p = document.querySelector('.pop');
+  return p.classList.contains('morphing') && p.getAnimations().some((a) => a.effect.getKeyframes().some((k) => "width" in k && parseFloat(k.width) === ${menuW})) })()`));
+await sleep(400);
 check("handing off to an agent lists the places", (await ev(`document.querySelectorAll('.pop .place').length`)) > 0);
-await click(`document.querySelector('.pop .place')`); await sleep(400);
+check("…and the morph is over: no fixed size left on the box", await ev(`(() => { const p = document.querySelector('.pop'); return !p.classList.contains('morphing') && !p.getAnimations().length })()`));
+await click(`document.querySelector('.pop .place')`); await sleep(150);
+const pillAnims = (id) => `[...document.querySelector('main .items .pill[data-id="${id}"]').getAnimations({ subtree: true })].map((a) => a.animationName + ":" + a.effect.getTiming().iterations)`;
+check("right after the hand-off: the gear spins up, a frame whirls around, a ring spreads out", await ev(`(() => { const a = ${pillAnims(plain.id)}.join(" ");
+  return document.querySelector('main .items .pill[data-id="${plain.id}"]').classList.contains('handoff') && /gear-in:1/.test(a) && /ants-in:1/.test(a) && /ping:1/.test(a) })()`), JSON.stringify(await ev(pillAnims(plain.id))));
+check("…and its new agent card rises into place", await ev(`!!document.querySelector('[data-agent-card="${plain.id}"]')?.getAnimations().some((a) => a.animationName === "card-arrive")`));
+await sleep(300);
 d = await doc();
 const hung = d.items.find((i) => i.id === plain.id);
 check("clicking a place hands it off", hung.status === "agent" && !!hung.agent?.where, `${hung.status} ${hung.agent?.where}`);
 check("an agent card appears", await ev(`!!document.querySelector('[data-agent-card="${plain.id}"]')`));
+check("with an agent: the gear keeps turning and the dashes of the frame keep travelling around it", await ev(`(() => { const a = ${pillAnims(plain.id)}; return a.includes("gear-turn:Infinity") && a.includes("ants:Infinity") })()`), JSON.stringify(await ev(pillAnims(plain.id))));
+check("the dashed frame is drawn by the SVG (the CSS border is transparent), and goes round the corners",
+  await ev(`(() => { const b = document.querySelector('main .items .pill[data-id="${plain.id}"]'), r = b.querySelector('.ants rect');
+    return getComputedStyle(b).borderTopColor === "rgba(0, 0, 0, 0)" && Math.abs(r.getBoundingClientRect().width - b.getBoundingClientRect().width) <= 1 && r.getAttribute('rx') === "7.5" })()`));
+
+// with prefers-reduced-motion: the menu opens and closes at once, and pills with an agent stand still
+await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }); await sleep(100);
+const still = d.items.find((i) => i.status === "todo" && !i.repeat && i.id !== plain.id);
+await click(`${row(still.title)}.querySelector('.pill')`); await sleep(30);
+check("with prefers-reduced-motion: the menu opens without animation", (await ev(`${popAnims}.length`)) === 0, JSON.stringify(await ev(popAnims)));
+await ev(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })), true`); await sleep(40);
+check("…closes at once", !(await ev(`!!document.querySelector('.pop')`)));
+check("…and pills with an agent stand still", await ev(`(() => { const ps = [...document.querySelectorAll('main .items .pill.run')]; return ps.length > 0 && ps.every((p) => !p.getAnimations({ subtree: true }).length) })()`));
+await send("Emulation.setEmulatedMedia", { features: [] }); await sleep(100);
 
 // 4. with an edit form open, clicking a button elsewhere keeps the half-written text
 const other = d.items.find((i) => i.status === "agent" && i.id !== plain.id && !i.repeat);
@@ -108,7 +143,7 @@ await click(`[...document.querySelectorAll('.pk-day:not(.out)')].find((b) => b.t
 check("the date picker stays open after clicking a day", await ev(`!!document.querySelector('.pop .pk')`));
 await type(`document.querySelector('.pop .pk-time')`, "18:30"); await sleep(400);
 await click(`[...document.querySelectorAll('.pop .qbtn')].find((b) => b.textContent === "完成")`); await sleep(200);
-check('clicking "完成" closes it', !(await ev(`!!document.querySelector('.pop')`)));
+check('clicking "完成" closes it', await waitFor(`!document.querySelector('.pop')`, 1000));
 check("the due date is saved as the 28th, 18:30", /-28 18:30$/.test((await doc()).items.find((i) => i.id === nodue.id).due ?? ""), (await doc()).items.find((i) => i.id === nodue.id).due);
 
 // 6. set a repeat, then remove it
