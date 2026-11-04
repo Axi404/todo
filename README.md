@@ -22,11 +22,11 @@ The interface is in Chinese.
 - A JSON API, and a small client (`client.mjs`) for agents and scripts
 - Works on phones
 
-The server uses only Node's standard library. The frontend is [Preact](https://preactjs.com/) with [htm](https://github.com/developit/htm), loaded as plain ES modules: nothing to install, nothing to build.
+The server uses only Node's standard library, including its built-in SQLite. The frontend is [Preact](https://preactjs.com/) with [htm](https://github.com/developit/htm), loaded as plain ES modules: nothing to install, nothing to build.
 
 ## Run it
 
-Needs Node 22 or later.
+Needs Node 24 or later.
 
 ```sh
 git clone https://github.com/Axi404/todo.git
@@ -34,7 +34,7 @@ cd todo
 node server.mjs
 ```
 
-Then open http://127.0.0.1:4404. The data goes to `./data/`.
+Then open http://127.0.0.1:4404. The data goes to `./data/todo.db`.
 
 | Variable | Default | |
 |---|---|---|
@@ -47,11 +47,18 @@ Then open http://127.0.0.1:4404. The data goes to `./data/`.
 
 ## Data
 
-Everything is in the data directory:
+Everything is in one SQLite file in the data directory, `todo.db`: the board, a log with one entry per change saying what changed and who changed it, and the state of the Canvas sync. `data.mjs` reads and writes it from the command line, in the same `TODO_DIR`:
 
-- `todo.json`: the whole board, and the only source of truth
-- `todo.md`: the same as Markdown, rewritten after every change
-- `todo-log.jsonl`: one line per change, saying what changed and who changed it
+| | |
+|---|---|
+| `node data.mjs export` | the board as JSON, as `GET /api/todo` returns it |
+| `node data.mjs import <board.json> [--log <log.jsonl>] [--replace]` | load a board, and its log if given (without `--log` the log stays as it is); a board that already has items is only replaced with `--replace` |
+| `node data.mjs markdown` | the board as Markdown |
+| `node data.mjs log` | the log, one JSON line per change |
+
+Run it as the user the server runs as, so the files SQLite creates next to `todo.db` stay writable for the server.
+
+To back up, export the board and the log, or make a consistent copy of the whole database, which works while the server runs: `sqlite3 data/todo.db "VACUUM INTO 'backup.db'"`. Copying `todo.db` itself is not enough while the server runs: the latest changes may still be in `todo.db-wal` next to it.
 
 ## API
 
@@ -82,7 +89,7 @@ With `CANVAS_HOST` (for example `canvas.instructure.com`) and an access token in
 
 ## Development
 
-- `node --test test/*.test.mjs`: the data layer, the API, login, the client
+- `node --test test/*.test.mjs`: the data layer and its storage, the API, login, the client
 - `node dev/test-board.mjs`, `dev/test-heroes.mjs`, `dev/test-demo.mjs`, `dev/test-canvas-sync.mjs`: checks that drive a headless Chrome (set `CHROME` if it is not where macOS puts it)
 - `node dev/snapshot.mjs`: screenshots and page structure, compared before and after a change that should not change how the board looks
 
@@ -90,6 +97,7 @@ With `CANVAS_HOST` (for example `canvas.instructure.com`) and an access token in
 |---|---|
 | `server.mjs`, `server/` | HTTP: host and origin checks, login, static files, the API |
 | `core/` | the data layer: storage, items, cards and sections, places, the Markdown copy |
+| `data.mjs` | the data on the command line: export, import, Markdown, the log |
 | `web/` | the frontend; header animations in `web/lib/heroes/` (see its README), effects in `web/lib/fx/` |
 | `canvas/`, `canvas-sync.mjs` | Canvas sync |
 | `client.mjs` | the API client |
