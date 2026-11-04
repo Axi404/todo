@@ -12,8 +12,10 @@ import { OPEN } from "./model.js";
 
 export const STRIKE_MS = 420, ERASE_MS = 300, MOVE_MS = 520, WINDOW_MS = 1500;
 const marks = new Map(); // id → { kind: "close" | "open", at }
+const handoffs = new Map(); // id → when it was handed to an agent
 
-/** Compares the old and new documents and records the items just done or dropped (close) and just reopened (open) */
+/** Compares the old and new documents and records the items just done or dropped (close), just reopened (open) and just
+ *  handed to an agent */
 export function noteChanges(oldDoc, newDoc) {
   if (!oldDoc?.items || !newDoc?.items) return;
   const before = new Map(oldDoc.items.map((i) => [i.id, i.status]));
@@ -24,7 +26,17 @@ export function noteChanges(oldDoc, newDoc) {
     const was = OPEN.includes(s), is = OPEN.includes(i.status);
     if (was && !is) marks.set(i.id, { kind: "close", at: now });
     else if (!was && is) marks.set(i.id, { kind: "open", at: now });
+    if (i.status === "agent") handoffs.set(i.id, now);
   }
+}
+
+/** Whether this item was handed to an agent within the last HANDOFF_MS (its pill and its agent card play an entrance) */
+export const HANDOFF_MS = 1200;
+export function handedOff(id) {
+  const at = handoffs.get(id);
+  if (at === undefined) return false;
+  if (performance.now() - at > HANDOFF_MS) { handoffs.delete(id); return false; }
+  return true;
 }
 
 /** What just happened to this item: "close" / "open" / null */

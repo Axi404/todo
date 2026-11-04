@@ -2,9 +2,10 @@ import { html, useState } from "../vendor/preact-htm.js";
 import { useBoard } from "./ctx.js";
 import { Block, Md } from "./ui.js";
 import { OPEN, SHORT } from "../lib/model.js";
-import { StatusIcon } from "./icons.js";
+import { StatusIcon, AgentFrame } from "./icons.js";
+import { handedOff } from "../lib/motion.js";
 import { ymd, WEEK } from "../lib/due.js";
-import { repeatState, repeatLabel, weekOf, DAY_ORDER } from "../lib/repeat.js";
+import { repeatState, repeatLabel, weekOf, DAY_ORDER, agentActive } from "../lib/repeat.js";
 import { cheer } from "../lib/fx/index.js";
 
 // Check-ins: recurring items as a weekly table; clicking a cell checks in or undoes the check-in
@@ -65,7 +66,9 @@ export function RepeatPill({ item: i }) {
     : !st.scheduled ? ["rest", "今天休息", "rest", "今天不用做"]
     : st.done ? ["done", "今天做完", "on", "取消今天的打卡"]
     : ["todo", "今天要做", "", "打卡"];
-  return html`<button class=${`pill routine ${cls} ${i.status === "agent" ? "agentish" : ""}`} data-id=${i.id} data-pop-anchor title=${title} aria-label=${text} onClick=${onClick}><${StatusIcon} s=${icon} /><span class="lbl">${text}</span></button>`;
+  // With an agent: a dashed frame, travelling while the agent is running today (not once today is done, or on a day off)
+  const agent = i.status === "agent" && cls !== "on", run = agent && agentActive(i), handoff = run && handedOff(i.id);
+  return html`<button class=${`pill routine ${cls} ${agent ? "agentish" : ""} ${run ? "run" : ""} ${handoff ? "handoff" : ""}`} data-id=${i.id} data-pop-anchor title=${title} aria-label=${text} onClick=${onClick}><${StatusIcon} s=${icon} />${agent ? html`<${AgentFrame} handoff=${handoff} />` : null}<span class="lbl">${text}</span></button>`;
 }
 
 // The repeat part of an item's meta line, e.g. "↻ weekdays 11:00   3 in a row"

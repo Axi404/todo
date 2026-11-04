@@ -6,7 +6,7 @@ import { groupOf } from "../lib/model.js";
 import { ago, dur, hoursSince } from "../lib/time.js";
 import { repeatState, agentActive } from "../lib/repeat.js";
 import { agentColsOf } from "../lib/theme.js";
-import { reducedMotion } from "../lib/motion.js";
+import { reducedMotion, handedOff } from "../lib/motion.js";
 import { leaveCard } from "../lib/fx/index.js";
 import { Seg } from "./controls.js";
 
@@ -54,7 +54,8 @@ function AgentCard({ item: i, stale }) {
   // Done, or today's check-in for a recurring item: play the completion effect chosen in settings and let this card leave the
   // Agent block (in its own card the item is struck through and slides down)
   const done = (e) => leaveCard(ref.current, e.currentTarget, doc.theme, () => (st ? it.check(st.key, true, "打卡了") : it.patch({ status: "done" })));
-  return html`<div class="card agent" data-agent-card=${i.id} ref=${ref}>
+  // Just handed off: the card rises into its place (the others slide aside, useSlide)
+  return html`<div class=${`card agent ${handedOff(i.id) ? "arrive" : ""}`} data-agent-card=${i.id} ref=${ref}>
     <h3><${Md} text=${i.title} /></h3>
     <div class="where">挂在 <${Md} text=${a.where || "没写"} />${g ? ` · ${g.title}` : ""}</div>
     <div class="when">挂了 ${dur(a.since)}　上次看 ${ago(a.lastSeen)}${hoursSince(a.lastSeen) > stale ? html`<span class="stale">${dur(a.lastSeen)}没看了</span>` : null}</div>

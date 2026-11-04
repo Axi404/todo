@@ -16,6 +16,11 @@ const SHAPES = {
   rest: html`<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none" />`,
 };
 export const StatusIcon = ({ s }) => html`<svg class="si" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${SHAPES[s] ?? SHAPES.todo}</svg>`;
+// The dashed frame of a pill whose item is with an agent: an SVG rounded rectangle over the pill's border, so its dashes can
+// travel around it while the agent is running (a CSS dashed border cannot move). handoff adds a second, faster frame that
+// whirls once around and fades out, for the moment the item is handed off
+export const AgentFrame = ({ handoff }) => html`<svg class="ants" aria-hidden="true"><rect class="a" x=".5" y=".5" width="100%" height="100%" rx="7.5" />${
+  handoff ? html`<rect class="in" x=".5" y=".5" width="100%" height="100%" rx="7.5" />` : null}</svg>`;
 export const EditIcon = () => html`<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 2.8l2.5 2.5-7.7 7.7-3.2.7.7-3.2z" /><path d="M9.3 4.2l2.5 2.5" /></svg>`;
 // Sync (Canvas): two arcs with arrowheads; warning: an exclamation mark in a circle
 export const SyncIcon = () => html`<svg class="sync-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>`;

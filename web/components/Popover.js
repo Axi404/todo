@@ -5,24 +5,36 @@ import { CalIcon, RepeatIcon, EditIcon, StatusIcon } from "./icons.js";
 import { LABEL, ORDER, OPEN } from "../lib/model.js";
 import { repeatState } from "../lib/repeat.js";
 import { leaveCard, cheer } from "../lib/fx/index.js";
+import { reducedMotion } from "../lib/motion.js";
 import { PlaceChips } from "./Places.js";
 import { DatePicker } from "./DatePicker.js";
 import { RepeatEditor } from "./Repeat.js";
 
 // The popover, by pop.kind: status is the status menu; ask is the follow-up question for agent, waiting and dropped;
 // picker is the date picker (DatePicker.js); repeat is the repeat editor (RepeatEditor in Repeat.js).
-// On desktop it hangs below the element that was clicked; on phones it rises from the bottom of the screen (sheet) over a mask
-export function Popover() {
+// On desktop it hangs below the element that was clicked; on phones it rises from the bottom of the screen (sheet) over a mask.
+// Motion: it opens from the element (the menu's rows follow one after another), changing to another view (the follow-up
+// question, the date picker, the repeat editor) morphs the box from the old size to the new one, and leaving (closed, still
+// shown for a moment) fades it out or slides the sheet down
+export function Popover({ leaving = false }) {
   const { doc, pop, setPop } = useBoard();
-  const ref = useRef(null);
-  const [left, setLeft] = useState(pop.x);
+  const ref = useRef(null), was = useRef(null);
   const sheet = isPhone();
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || sheet) return;
-    setLeft(Math.min(pop.x, scrollX + document.documentElement.clientWidth - el.offsetWidth - 12));
-    if (pop.kind === "ask") el.querySelector("input")?.focus(); // skipped on phones, so no keyboard pops up and the places can be tapped first
-  }, [pop.kind, pop.id, pop.s, pop.x]);
+    if (!el) return;
+    if (!sheet) {
+      const left = Math.min(pop.x, scrollX + document.documentElement.clientWidth - el.offsetWidth - 12);
+      el.style.left = `${left}px`;
+      el.style.setProperty("--ox", `${Math.round(pop.x + (pop.w ?? 0) / 2 - left)}px`); // it grows out of the element's middle
+      if (pop.kind === "ask" && !leaving) el.querySelector("input")?.focus(); // not on phones: no keyboard yet, so the places can be tapped first
+    }
+    const now = { kind: pop.kind, left: el.offsetLeft, top: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+    const prev = was.current;
+    if (!prev) el.querySelectorAll(":scope > .opt").forEach((o, k) => o.style.setProperty("--i", k)); // the rows come in one by one
+    was.current = now;
+    if (prev && prev.kind !== now.kind) morph(el, prev, now, sheet);
+  }, [pop.kind, pop.s, pop.x, pop.y]);
   useAboveKeyboard(ref, sheet);
   const item = pop.id ? doc.items.find((i) => i.id === pop.id) : null;
   if (pop.id && !item) return null;
@@ -32,8 +44,19 @@ export function Popover() {
     : pop.kind === "picker" ? html`<${DuePicker} item=${item} close=${close} />`
     : pop.kind === "repeat" ? html`<${RepeatEditor} key=${item.id} item=${item} close=${close} />`
     : null;
-  if (sheet) return html`<div class="pop-mask"></div><div class="pop sheet" ref=${ref}>${body}</div>`;
-  return html`<div class="pop" ref=${ref} style=${{ left: `${left}px`, top: `${pop.y}px` }}>${body}</div>`;
+  const cls = leaving ? "leaving" : "";
+  if (sheet) return html`<div class=${`pop-mask ${cls}`}></div><div class=${`pop sheet ${cls}`} ref=${ref}>${body}</div>`;
+  return html`<div class=${`pop ${cls}`} ref=${ref} style=${{ left: `${pop.x}px`, top: `${pop.y}px` }}>${body}</div>`;
+}
+
+// From one view to the next: the box goes from the old size and place to the new ones (on phones only the height changes,
+// the sheet stays at the bottom); the new view fades in meanwhile (styles.css)
+function morph(el, a, b, sheet) {
+  if (reducedMotion() || typeof el.animate !== "function") return;
+  const box = (r) => (sheet ? { height: `${r.h}px` } : { left: `${r.left}px`, top: `${r.top}px`, width: `${r.w}px`, height: `${r.h}px` });
+  el.classList.add("morphing");
+  el.animate([box(a), box(b)], { duration: 280, easing: "cubic-bezier(.2, .8, .2, 1)" })
+    .finished.then(() => el.classList.remove("morphing"), () => el.classList.remove("morphing"));
 }
 
 // Status menu: the six statuses (recurring items have no done; "done today" is at the top instead), then due date, repeat
@@ -60,13 +83,13 @@ function StatusMenu({ item }) {
   };
   const edit = () => { setPop(null); setUi({ editing: pop.from === "agent" ? `i:${item.id}@agent` : `i:${item.id}`, adding: null }); };
   return html`${rep && st.scheduled && OPEN.includes(item.status) ? html`<${Opt} icon=${html`<${StatusIcon} s="done" />`} label=${st.done ? "取消今天的打卡" : "今天做完了"} onClick=${tick} /><div class="sep"></div>` : null}
-    ${ORDER.filter((s) => !(rep && s === "done")).map((s) => html`<${Opt} key=${s} icon=${html`<${StatusIcon} s=${s} />`} label=${LABEL[s]} cur=${item.status === s} onClick=${() => pick(s)} />`)}
+    ${ORDER.filter((s) => !(rep && s === "done")).map((s) => html`<${Opt} key=${s} s=${s} icon=${html`<${StatusIcon} s=${s} />`} label=${LABEL[s]} cur=${item.status === s} onClick=${() => pick(s)} />`)}
     <div class="sep"></div>
     ${rep ? null : html`<${Opt} icon=${html`<${CalIcon} />`} label=${item.due ? "改截止日期" : "设截止日期"} onClick=${() => setPop({ ...pop, kind: "picker" })} />`}
     <${Opt} icon=${html`<${RepeatIcon} />`} label=${rep ? "改重复" : "设为重复"} onClick=${() => setPop({ ...pop, kind: "repeat" })} />
     <${Opt} icon=${html`<${EditIcon} />`} label="编辑" onClick=${edit} />`;
 }
-const Opt = ({ icon, label, cur, onClick }) => html`<button class="opt" onClick=${onClick}><span class="i">${icon}</span>${label}${cur ? html`<span class="cur">当前</span>` : null}</button>`;
+const Opt = ({ icon, label, cur, onClick, s = "" }) => html`<button class=${`opt ${s ? `s-${s}` : ""}`} onClick=${onClick}><span class="i">${icon}</span>${label}${cur ? html`<span class="cur">当前</span>` : null}</button>`;
 
 // Agent, waiting, dropped: ask one follow-up question, then change the status
 const QUESTIONS = { agent: "挂在哪？", waiting: "在等谁、等什么？", dropped: "为什么不做了？" };

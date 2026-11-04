@@ -1,7 +1,7 @@
 import { html, useEffect, useRef } from "../vendor/preact-htm.js";
 import { useBoard } from "./ctx.js";
 import { Md, AutoText, FormActions, useForm, onEnter } from "./ui.js";
-import { CalIcon, RepeatIcon, StatusIcon } from "./icons.js";
+import { CalIcon, RepeatIcon, StatusIcon, AgentFrame } from "./icons.js";
 import { RepeatBadge, RepeatPill } from "./Repeat.js";
 import { PlaceChips } from "./Places.js";
 import { repeatLabel, repeatState, agentActive } from "../lib/repeat.js";
@@ -9,19 +9,23 @@ import { SHORT, OPEN, allCards, cardPath } from "../lib/model.js";
 import { dueInfo } from "../lib/due.js";
 import { stripMd } from "../lib/md.js";
 import { ago } from "../lib/time.js";
-import { motionOf, reducedMotion, STRIKE_MS, MOVE_MS } from "../lib/motion.js";
+import { motionOf, handedOff, reducedMotion, STRIKE_MS, MOVE_MS } from "../lib/motion.js";
 import { useFoldAnim, staggerOf } from "./useFold.js";
 
 // One item: the status pill on the left, the title, note, a small meta line (due date, Canvas link, repeat, where the agent
 // runs, who it is waiting on, ...), and ↑ ↓ ✎ on the right. The editor (ItemForm) is here too: ✎ in a card opens it in
 // that row, Edit on an agent card opens it in the Agent block
 
-// Status pill: opens the status menu; recurring items use another kind (RepeatPill, one click checks in)
+// Status pill: opens the status menu; recurring items use another kind (RepeatPill, one click checks in).
+// With an agent: the gear turns and the dashes of the frame travel around it (styles.css, .run); right after the hand-off
+// (handoff) the gear spins up and the frame whirls in
 export function Pill({ item }) {
   const { openPop } = useBoard();
   if (item.repeat?.days?.length) return html`<${RepeatPill} item=${item} />`;
-  return html`<button class=${`pill ${item.status}`} data-id=${item.id} data-pop-anchor aria-label=${SHORT[item.status]}
-    onClick=${(e) => openPop("status", item.id, e.currentTarget)}><${StatusIcon} s=${item.status} /><span class="lbl">${SHORT[item.status]}</span></button>`;
+  const agent = item.status === "agent", handoff = agent && handedOff(item.id);
+  return html`<button class=${`pill ${item.status} ${agent ? "run" : ""} ${handoff ? "handoff" : ""}`} data-id=${item.id} data-pop-anchor aria-label=${SHORT[item.status]}
+    onClick=${(e) => openPop("status", item.id, e.currentTarget)}>${agent ? html`<span class="gear"><${StatusIcon} s="agent" /></span>` : html`<${StatusIcon} s=${item.status} />`}<span class="lbl">${SHORT[item.status]}</span>${
+    agent ? html`<${AgentFrame} handoff=${handoff} />` : null}</button>`;
 }
 
 // The due date in an item's meta line: a click opens the date picker

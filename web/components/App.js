@@ -3,7 +3,8 @@ import { Ctx } from "./ctx.js";
 import { useDoc } from "./useDoc.js";
 import { actions } from "../lib/api.js";
 import { applyTheme } from "../lib/theme.js";
-import { usePresence, anchorAt, isPhone } from "./ui.js";
+import { usePresence, useLingering, anchorAt, isPhone } from "./ui.js";
+import { reducedMotion } from "../lib/motion.js";
 import { Header } from "./Header.js";
 import { Hero } from "./Hero.js";
 import { Overview } from "./Overview.js";
@@ -22,6 +23,8 @@ import { Popover } from "./Popover.js";
 export function App() {
   const [ui, setUiState] = useState({ editMode: false, editing: null, adding: null, settings: false, locate: null });
   const [pop, setPop] = useState(null);
+  // A closed popover stays a moment longer to animate out (the menu fades, the sheet slides down); it cannot be clicked then
+  const [shownPop, popLeaving] = useLingering(pop, reducedMotion() ? 0 : 220);
   const [drawerOn, drawerShown] = usePresence(!!ui.settings, 300);
   const busy = !!(ui.editing || ui.adding || pop || ui.settings);
   const { doc, err, reload, save } = useDoc(busy);
@@ -73,10 +76,14 @@ export function App() {
     </div></main>
     ${t.showToc !== false ? html`<${Toc} />` : null}
     ${drawerOn ? html`<${Settings} shown=${drawerShown} />` : null}
-    ${pop ? html`<${Popover} />` : null}
+    ${shownPop ? html`<${Ctx.Provider} value=${{ ...ctx, pop: shownPop }}><${Popover} key=${popKey(shownPop)} leaving=${popLeaving} /><//>` : null}
     <div class=${`toast ${toastMsg ? "show" : ""}`}>${toastMsg}</div>
   <//>`;
 }
+
+// The status menu and its follow-up question are one popover, so going from one to the other morphs the same box (the
+// date picker and the repeat editor opened from the menu too); another item, or another kind opened directly, is a new one
+const popKey = (p) => `${p.id ?? "form"}:${p.onPick ? "pick" : ""}`;
 
 // A line at the bottom (toast) that disappears by itself after 1.8 s
 function useToast() {

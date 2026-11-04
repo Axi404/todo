@@ -117,4 +117,17 @@ export function usePresence(open, ms = 300) {
 
 // Where a popover (.pop) goes: x, y is the bottom-left corner of the anchor (page coordinates). The anchor needs
 // data-pop-anchor so that clicking it does not count as a click outside
-export const anchorAt = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + scrollX, y: r.bottom + scrollY + 6 }; };
+/** Keeps the last non-null value for ms after value becomes null, so it can animate out: returns [shown, leaving] */
+export function useLingering(value, ms) {
+  const last = useRef(null), [gone, setGone] = useState(true);
+  if (value) last.current = value;
+  useEffect(() => {
+    if (value) { setGone(false); return; }
+    const t = setTimeout(() => setGone(true), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  const shown = value ?? (gone ? null : last.current);
+  return [shown, !value && !!shown];
+}
+
+export const anchorAt = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + scrollX, y: r.bottom + scrollY + 6, w: r.width }; };

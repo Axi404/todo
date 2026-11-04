@@ -205,6 +205,25 @@
   .pill.routine.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .pill.routine.rest { color: hsl(var(--faint)); }
   .pill.routine.agentish:not(.on) { border-style: dashed; border-color: hsl(var(--foreground) / .45); }
+  /* With an agent, the dashed frame is an SVG over the border (AgentFrame in icons.js), so that its dashes can move: while the
+     agent runs (.run) they travel slowly around the pill and the gear turns. Right after the hand-off (.handoff) the gear spins
+     up and slows into its turn, a second frame whirls once around and fades, and a faint ring spreads out */
+  .pill.agent, .pill.agentish { position: relative; border-color: transparent; }
+  .pill .gear { display: inline-flex; flex: none; }
+  .pill .ants { position: absolute; left: -1px; top: -1px; width: calc(100% + 1px); height: calc(100% + 1px); overflow: visible; fill: none; pointer-events: none; }
+  .pill .ants rect { stroke: hsl(var(--foreground) / .55); stroke-width: 1; stroke-dasharray: 3 2.6; }
+  .pill.agentish .ants rect { stroke: hsl(var(--foreground) / .45); }
+  .pill.run .ants .a { animation: ants .9s steps(6) infinite; } /* a pixel a step: redrawing a dashed line is not free, and it moves slowly anyway */
+  .pill.agent.run .gear .si { animation: gear-turn 6s linear infinite; }
+  .pill.handoff .gear { animation: gear-in 1.1s cubic-bezier(.1, .75, .3, 1) backwards; }
+  .pill.handoff .ants .in { stroke: hsl(var(--foreground) / .85); stroke-dasharray: 1.6 4.4; animation: ants-in 1.1s cubic-bezier(.3, .7, .4, 1) both; }
+  .pill.handoff::after { content: ""; position: absolute; inset: -1px; border: 1px solid hsl(var(--foreground) / .35); border-radius: 8px; pointer-events: none;
+    animation: ping .8s cubic-bezier(.2, .7, .3, 1) both; }
+  @keyframes ants { to { stroke-dashoffset: -5.6; } }
+  @keyframes ants-in { from { stroke-dashoffset: 0; opacity: 1; } to { stroke-dashoffset: -72; opacity: 0; } }
+  @keyframes gear-turn { to { transform: rotate(360deg); } }
+  @keyframes gear-in { from { transform: rotate(-330deg); } }
+  @keyframes ping { to { inset: -7px; border-radius: 14px; opacity: 0; } }
 
   .agent .where { margin-top: 4px; color: hsl(var(--muted-foreground)); font-size: .93em; }
   .agent .when { margin-top: 6px; color: hsl(var(--faint)); font-size: 12.5px; }
@@ -212,6 +231,9 @@
   /* Done, or checked in for today: the card leaves with the completion effect (leaveCard in web/lib/fx/index.js) and cannot be
      clicked while it plays */
   .card.agent[data-leaving] { pointer-events: none; }
+  /* A card for an item just handed off rises into its place */
+  .card.agent.arrive { animation: card-arrive .6s cubic-bezier(.22, 1, .36, 1) backwards; }
+  @keyframes card-arrive { from { opacity: 0; transform: translateY(14px) scale(.97); } }
   .stale { margin-left: 10px; padding: 1px 8px; border-radius: 6px; font-size: 12px; color: hsl(var(--warn)); background: hsl(var(--warn-bg)); }
   .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .btn { height: 34px; padding: 0 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--secondary)); border-radius: 8px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
@@ -242,6 +264,18 @@
 
   .pop { position: absolute; z-index: 50; min-width: 200px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 12px;
     box-shadow: 0 10px 30px hsl(240 10% 4% / .14); padding: 6px; }
+  /* Motion (see Popover.js): it opens out of the element that was clicked (--ox), the menu's rows follow one after another
+     (--i), another view fades in while the box morphs to its size (.morphing), and a closed popover fades out (.leaving) */
+  .pop { transform-origin: var(--ox, 24px) 0; animation: pop-in .18s cubic-bezier(.2, .9, .3, 1) backwards; }
+  .pop > .opt { animation: pop-row .26s cubic-bezier(.2, .9, .3, 1) backwards; animation-delay: calc(20ms + var(--i, 0) * 16ms); }
+  .pop > .ask, .pop > .pk, .pop > .rp { animation: pop-view .22s cubic-bezier(.2, .9, .3, 1) .06s backwards; }
+  .pop.morphing { overflow: hidden; }
+  .pop.leaving { animation: pop-out .15s ease-in both; pointer-events: none; }
+  @media (hover: hover) { .pop .opt.s-agent:hover .si { animation: gear-turn 2.4s linear infinite; } }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(-6px) scale(.96); } }
+  @keyframes pop-out { to { opacity: 0; transform: translateY(-4px) scale(.98); } }
+  @keyframes pop-row { from { opacity: 0; transform: translateY(-4px); } }
+  @keyframes pop-view { from { opacity: 0; } }
   .pop .opt { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; text-align: left; }
   @media (hover: hover) { .pop .opt:hover { background: hsl(var(--secondary)); } }
   .pop .opt .i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
@@ -706,7 +740,15 @@
   }
   @keyframes sheet-in { from { transform: translateY(100%); } }
   @keyframes mask-in { from { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .pop.sheet, .pop-mask { animation: none; } }
+  .pop.sheet.leaving { animation: sheet-out .22s cubic-bezier(.4, 0, 1, 1) both; }
+  .pop-mask.leaving { animation: mask-out .22s ease both; pointer-events: none; }
+  @keyframes sheet-out { to { transform: translateY(100%); } }
+  @keyframes mask-out { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pop, .pop.sheet, .pop-mask, .pop > .opt, .pop > .ask, .pop > .pk, .pop > .rp, .card.agent.arrive,
+    .pill .ants rect, .pill .gear, .pill .gear .si, .pop .opt.s-agent .si { animation: none !important; }
+    .pill.handoff::after { content: none; }
+  }
   /* Touch screens (phones in portrait or landscape, tablets) and narrow screens: inputs are at least 16px. Below that, iPhone
      zooms the whole page in as soon as one is tapped and does not zoom back out, and Safari keeps that zoom even after a reload.
      Placed last to override the font sizes set everywhere above */
