@@ -1,4 +1,4 @@
-// How Canvas assignments are merged into todo.json (pure functions; the tests call applySync directly). Reading Canvas is in
+// How Canvas assignments are merged into the board (pure functions; the tests call applySync directly). Reading Canvas is in
 // read.mjs; running a sync and recording its state is in ../canvas-sync.mjs.
 //
 // Rules:

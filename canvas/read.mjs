@@ -9,7 +9,7 @@
 //
 // Export: { ok: true, host, fetched_at, courses: [{ id, name, ok, error?, assignments: [{ id, name, due_at, lock_at, html_url,
 //         submission_types, published, workflow_state, submitted_at, missing, late, excused }] }] }
-// A malformed export is rejected as a whole (check), so partial data never changes todo.json; a course that could not be
+// A malformed export is rejected as a whole (check), so partial data never changes the board; a course that could not be
 // fetched is marked on that course only (ok: false).
 import { spawn } from "node:child_process";
 import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";

@@ -1,7 +1,7 @@
 // The API table: one line per endpoint.
 // HANDLERS: handled directly; what they return is the response.
-// EDITS: the endpoints that change data, in core/edits.mjs (the demo site uses the same table in the browser); server.mjs does
-// the locked read and write (mutate), records who made the change and returns the whole updated document.
+// EDITS: the endpoints that change data, in core/edits.mjs (the demo site uses the same table in the browser); server.mjs runs
+// each in one transaction (mutate), records who made the change and returns the whole updated document.
 import * as L from "../lib.mjs";
 import { syncCanvas, syncing, readState } from "../canvas-sync.mjs";
 export { EDITS, match } from "../core/edits.mjs";

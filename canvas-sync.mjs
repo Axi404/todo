@@ -1,15 +1,15 @@
-// Canvas sync: brings Canvas assignments into the board. It reads Canvas (canvas/read.mjs), merges the assignments into
-// todo.json by the rules in canvas/merge.mjs (listed at the top of that file) and records the outcome in .canvas-sync.json in
-// the data directory. The board's sync button and the command line both run through here; no agent is involved.
+// Canvas sync: brings Canvas assignments into the board. It reads Canvas (canvas/read.mjs), merges the assignments into the
+// board by the rules in canvas/merge.mjs (listed at the top of that file) and records the outcome in the database next to the
+// board (meta canvasSync, through getMeta / setMeta in core/store.mjs). The board's sync button and the command line both run
+// through here; no agent is involved.
 // On the server (with CANVAS_HOST and CANVAS_TOKEN set), the board server also runs it every three hours (scheduleSync,
 // called when server.mjs starts).
 //
 //   TODO_DIR=<data dir> node canvas-sync.mjs            sync once
 //   TODO_DIR=<data dir> node canvas-sync.mjs --dry-run  only show what would change, write nothing
-import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { load, mutate, dataFile, writeAtomic } from "./core/store.mjs";
+import { load, mutate, getMeta, setMeta } from "./core/store.mjs";
 import { fetchCanvas } from "./canvas/read.mjs";
 import { applySync } from "./canvas/merge.mjs";
 
@@ -17,11 +17,8 @@ export { applySync, localDue } from "./canvas/merge.mjs";
 export { fetchCanvas, fetchCanvasDirect } from "./canvas/read.mjs";
 export { rememberDismissed } from "./core/items.mjs";
 
-const stateFile = () => dataFile(".canvas-sync.json");
-export async function readState() {
-  try { return JSON.parse(await fs.readFile(stateFile(), "utf8")); } catch { return {}; }
-}
-const saveState = (st) => writeAtomic(stateFile(), JSON.stringify(st, null, 2) + "\n");
+export const readState = () => getMeta("canvasSync") ?? {};
+const saveState = (st) => setMeta("canvasSync", st);
 
 let running = null;
 export const syncing = () => !!running;
@@ -64,7 +61,7 @@ async function runOnce({ dryRun = false, fetch = fetchCanvas } = {}) {
   return result;
 }
 
-// What goes into .canvas-sync.json: the board uses it to show how the last sync went
+// What is recorded of a run: the board uses it to show how the last sync went
 const brief = (r) => ({
   courses: r.courses, added: r.added.length, updated: r.updated.length, done: r.done.length,
   conflicts: r.conflicts, gone: r.gone, failedCourses: r.failedCourses,

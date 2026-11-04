@@ -2,7 +2,7 @@
 // Uses only a temporary directory, never real data (TODO_DIR is set before lib.mjs is imported).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -119,20 +119,22 @@ test("summary: the agent count includes only items running today, and the places
   assert.match(s, /常挂的地方.*：(lab|home)/);
 });
 
-test("mutate: writes to disk, bumps rev, logs, generates Markdown; writes nothing when nothing changed", async () => {
-  writeFileSync(join(DIR, "todo.json"), JSON.stringify(L.emptyDoc()));
-  const d1 = await L.mutate((d) => {
+test("mutate: writes to the database, bumps rev, logs, the Markdown copy shows the change; writes nothing when nothing changed", () => {
+  L.replaceAll(L.emptyDoc());
+  const d1 = L.mutate((d) => {
     d.sections.push({ id: "s", title: "S" });
     d.groups.push({ id: "g", section: "s", title: "S" });
     d.items.push({ id: "x", group: "g", title: "写进去", status: "todo" });
     return { op: "add", id: "x" };
   }, "test");
   assert.equal(d1.rev, 1);
-  assert.equal(JSON.parse(readFileSync(join(DIR, "todo.json"), "utf8")).items[0].title, "写进去");
-  assert.ok(existsSync(join(DIR, "todo.md")));
-  assert.match(readFileSync(join(DIR, "todo-log.jsonl"), "utf8"), /"actor":"test"/);
-  const d2 = await L.mutate(() => null, "test");
+  assert.equal(L.load().items[0].title, "写进去");
+  assert.match(L.toMarkdown(L.load()), /写进去/);
+  assert.deepEqual(L.readLog(), [{ ts: d1.updatedAt, actor: "test", op: "add", id: "x" }]);
+  const d2 = L.mutate((d) => { d.items[0].title = "没写进去"; return null; }, "test");
   assert.equal(d2.rev, 1, "rev stays the same when nothing changed");
+  assert.equal(L.load().items[0].title, "写进去", "nothing written when nothing changed");
+  assert.equal(L.readLog().length, 1, "nothing logged when nothing changed");
 });
 
 test("due date: the date must exist; a month-day date gets the year filled in", async () => {

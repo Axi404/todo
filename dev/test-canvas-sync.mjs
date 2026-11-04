@@ -2,7 +2,7 @@
 // temporary port and a fake Canvas export; never touches real data and never connects to Canvas.
 //   node dev/test-canvas-sync.mjs
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile, rm, readdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -235,9 +235,8 @@ process.exit(d.exit ?? 0);
 `);
 const setFake = (out, exit = 0) => writeFile(join(TMP, "canvas-data.json"), JSON.stringify({ out, exit }));
 const runs = async () => (existsSync(join(TMP, "runs.log")) ? (await readFile(join(TMP, "runs.log"), "utf8")).trim().split("\n").length : 0);
-await writeFile(join(TMP, "todo.json"), JSON.stringify(baseDoc(), null, 2));
 
-const srv = await startServer({ dir: TMP, env: { CANVAS_EXPORTER: FAKE } });
+const srv = await startServer({ dir: TMP, data: baseDoc(), env: { CANVAS_EXPORTER: FAKE } });
 const PORT = srv.port;
 const http = (method, path, { headers = {}, body } = {}) => new Promise((resolve, reject) => {
   const h = { host: `127.0.0.1:${PORT}`, ...headers };
@@ -339,7 +338,7 @@ try {
   });
 
   await check("log entries written by sync have actor canvas-sync", async () => {
-    const lines = (await readFile(join(TMP, "todo-log.jsonl"), "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+    const lines = srv.log();
     assert.ok(lines.some((l) => l.actor === "canvas-sync" && l.op === "canvas-add"));
   });
 } finally {

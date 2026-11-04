@@ -1,8 +1,8 @@
 // The table of endpoints that change data: one line per endpoint. Each receives (doc, body, id), has an operation from core
 // change doc, and returns one log entry (null when nothing changed).
-// Two places use the same table: the server (server.mjs does the locked read and write and records who made the change; see
-// server/routes.mjs), and the demo site (demo/backend.js), which runs it on a copy of the data in the browser. So neither this
-// file nor the modules it uses may touch anything from Node (file access lives in store.mjs).
+// Two places use the same table: the server (server.mjs reads, changes and writes in one transaction and records who made the
+// change; see server/routes.mjs), and the demo site (demo/backend.js), which runs it on a copy of the data in the browser. So
+// neither this file nor the modules it uses may touch anything from Node (storage lives in store.mjs).
 import { addItem, updateItem, deleteItem, checkItem, moveItem } from "./items.mjs";
 import { addGroup, updateGroup, deleteGroup, moveGroup, addSection, updateSection, deleteSection, moveSection, patchTheme, patchSettings, patchExtras } from "./board.mjs";
 import { addPlace, renamePlace, deletePlace } from "./places.mjs";

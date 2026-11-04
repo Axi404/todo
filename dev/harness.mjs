@@ -8,7 +8,7 @@
 //   console.log(await page.ev(`document.title`));
 //
 // Needs Chrome on this machine (the default macOS path; elsewhere set CHROME=...). TODO_CODE=<dir> starts the server.mjs in
-// that directory instead (e.g. an older version of the code).
+// that directory instead (e.g. an older version of the code, one that keeps the board in todo.db).
 // Browser only, without a board server (the demo site checks): const chrome = await startChrome(); const page = await chrome.tab(url, { network: true });
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -17,6 +17,7 @@ import path from "node:path";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { sampleDoc } from "../demo/sample.js";
+import { openStore } from "../core/store.mjs";
 
 export const TODO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -30,7 +31,9 @@ export async function startBoard({ from, data, theme, env = {} } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "axi-board-"));
   const doc = from ? JSON.parse(fs.readFileSync(from, "utf8")) : sampleDoc();
   if (data) data(doc);
-  fs.writeFileSync(path.join(tmp, "todo.json"), JSON.stringify(doc));
+  const store = openStore(tmp);
+  store.replaceAll(doc);
+  store.close();
   const port = await freePort(), base = `http://127.0.0.1:${port}`;
   const server = spawn(process.execPath, [path.join(CODE, "server.mjs")], { env: { ...process.env, ...env, TODO_DIR: tmp, TODO_PORT: String(port) }, stdio: "ignore" });
   const chrome = await startChrome(path.join(tmp, "chrome"));
