@@ -3,7 +3,8 @@
 // locally, start one directly:
 //   TODO_DIR=<temp dir> TODO_PORT=<port> node server.mjs
 // Environment variables:
-//   TODO_DIR          data directory (todo.json, todo.md, todo-log.jsonl); defaults to data/ next to server.mjs (core/store.mjs)
+//   TODO_DIR          data directory: todo.db holds the board, its log and the Canvas sync state (core/store.mjs; data.mjs
+//                     exports and imports it); defaults to data/ next to server.mjs
 //   TODO_PORT         port
 //   TODO_PUBLIC_HOST  the public host name (e.g. todo.example.com): the Host and Origin checks accept it
 //   TODO_PASSWORD     a password is required only when this is set (see server/auth.mjs); TODO_SECRET signs the login cookie

@@ -2,8 +2,8 @@
 //
 //   createClient({ url, passwordFile, mirror, actor })   or set TODO_URL, TODO_PASSWORD_FILE, TODO_MIRROR
 //
-// mirror: a local copy of todo.json. When the server cannot be reached, status, list and groups read it instead and say so;
-// changes fail.
+// mirror: a local copy of the board as JSON (what node data.mjs export prints). When the server cannot be reached, status, list
+// and groups read it instead and say so; changes fail.
 
 import { readFileSync, statSync } from "node:fs";
 import * as L from "./lib.mjs";

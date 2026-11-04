@@ -1,5 +1,5 @@
-// The two plain-text views: todo.md (regenerated on every write, handy for reading in a Markdown app such as Obsidian) and the
-// briefing for agents (status in client.mjs)
+// The two plain-text views: the Markdown copy (node data.mjs markdown prints it; handy for reading in a Markdown app such as
+// Obsidian) and the briefing for agents (status in client.mjs)
 import { LABEL, ICON, OPEN, sections, groupsOf, itemsOf } from "../web/lib/model.js";
 import { repeatLabel, repeatState, agentActive } from "../web/lib/repeat.js";
 import { placesByRecency } from "../web/lib/places.js";
@@ -11,7 +11,7 @@ export function toMarkdown(doc) {
   const out = [
     "# ToDo",
     "",
-    "这份由 `todo.json` 自动生成，别直接改这里。",
+    "这份是从看板导出的（`node data.mjs markdown`），别直接改这里。",
     "",
     `更新于 ${doc.updatedAt}（rev ${doc.rev}）。`,
     "",
