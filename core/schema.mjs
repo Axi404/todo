@@ -1,4 +1,5 @@
-// The shape of todo.json: default appearance and settings, an empty document, and filling in missing fields on load (normalize).
+// The shape of the board's document: default appearance and settings, an empty document, and filling in missing fields on load
+// (normalize).
 // Everything the board's settings can change lives in theme / settings; to add a setting, add a default here (the API accepts
 // only the fields listed here).
 import { nowIso } from "./doc.mjs";
@@ -37,9 +38,13 @@ export function emptyDoc() {
   return { version: 2, rev: 0, updatedAt: nowIso(), sections: [], groups: [], items: [], places: [], extras: {}, theme: { ...DEFAULT_THEME }, settings: { ...DEFAULT_SETTINGS } };
 }
 
-/** Fills in missing fields (order, theme, settings, places), drops unnamed and duplicate places, and sorts */
+/** Fills in missing fields (rev, order, theme, settings, places), drops unnamed and duplicate places, and sorts. It also writes
+ *  the few things the database stores only one way in that one way (an empty agent or list of check-ins is left out, a place
+ *  always has lastUsed and uses), so a document is the same however it was stored */
 export function normalize(doc) {
   doc.version = 2;
+  doc.rev ??= 0;
+  doc.updatedAt ??= nowIso();
   doc.sections ??= [];
   doc.groups ??= [];
   doc.items ??= [];
@@ -47,6 +52,7 @@ export function normalize(doc) {
   doc.theme = { ...DEFAULT_THEME, ...(doc.theme ?? {}) };
   doc.places ??= [];
   doc.places = doc.places.filter((p, k, all) => p?.name?.trim() && all.findIndex((q) => q.name === p.name) === k);
+  for (const p of doc.places) { p.lastUsed ??= null; p.uses ??= 0; }
   doc.settings = { ...DEFAULT_SETTINGS, ...(doc.settings ?? {}) };
   doc.sections.forEach((s, i) => { s.order ??= (i + 1) * 10; s.sub ??= ""; s.hidden ??= false; });
   const perSection = {};
@@ -62,6 +68,8 @@ export function normalize(doc) {
   for (const it of doc.items) {
     perGroup[it.group] = (perGroup[it.group] ?? 0) + 1;
     it.order ??= perGroup[it.group] * 10;
+    if (it.agent && !Object.keys(it.agent).length) delete it.agent;
+    if (it.doneDates && !it.doneDates.length) delete it.doneDates;
   }
   doc.sections.sort((a, b) => a.order - b.order);
   const sectionRank = Object.fromEntries(doc.sections.map((sec, k) => [sec.id, k]));
