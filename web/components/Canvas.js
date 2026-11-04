@@ -6,7 +6,7 @@ import { allCards, cardPath } from "../lib/model.js";
 import { SyncIcon, WarnIcon } from "./icons.js";
 
 // Canvas sync for assignments. The button only asks the board server to run canvas-sync.mjs once; reading Canvas and
-// changing todo.json both happen on the server. One button sits under the section heading and one in the settings drawer;
+// changing the board both happen on the server. One button sits under the section heading and one in the settings drawer;
 // they share this state (store), so both spin while syncing and both update when it finishes
 
 const store = { st: null, busy: false, subs: new Set() };

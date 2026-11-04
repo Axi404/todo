@@ -1,4 +1,4 @@
-// Appearance: applies the theme from todo.json to the page (CSS variables, data-* on <html>, custom CSS), plus a few values that
+// Appearance: applies the board's theme to the page (CSS variables, data-* on <html>, custom CSS), plus a few values that
 // need validating
 
 /** How many columns the agent block uses: 1 / 2 / 3 */
