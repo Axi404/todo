@@ -91,6 +91,7 @@ With `CANVAS_HOST` (for example `canvas.instructure.com`) and an access token in
 
 - `node --test test/*.test.mjs`: the data layer and its storage, the API, login, the client
 - `node dev/test-board.mjs`, `dev/test-heroes.mjs`, `dev/test-demo.mjs`, `dev/test-canvas-sync.mjs`: checks that drive a headless Chrome (set `CHROME` if it is not where macOS puts it)
+- `node dev/make-icons.mjs`: redraws `web/favicon.ico` and `web/apple-touch-icon.png` from `web/favicon.svg`
 - `node dev/snapshot.mjs`: screenshots and page structure, compared before and after a change that should not change how the board looks
 
 | | |
