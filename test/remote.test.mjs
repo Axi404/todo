@@ -59,6 +59,18 @@ test("not logged in: pages redirect to the login page and the API returns 401; h
   assert.match(r.text, /密码不对/);
 });
 
+test("not logged in: the site's icons are served (the login page shows one), with their types", async () => {
+  const types = { "/favicon.svg": "image/svg+xml", "/favicon.ico": "image/x-icon", "/apple-touch-icon.png": "image/png" };
+  const login = (await raw("GET", "/login")).text;
+  for (const [path, type] of Object.entries(types)) {
+    const r = await raw("GET", path);
+    assert.equal(r.status, 200, path);
+    assert.equal(r.headers["content-type"], type, path);
+    assert.ok(login.includes(`href="${path}"`), `the login page links ${path}`);
+  }
+  assert.equal((await raw("GET", "/favicon.png")).status, 401, "other files still need a login");
+});
+
 test("accepts both Bearer and Basic; rejects a wrong password", async () => {
   assert.equal((await raw("GET", "/api/todo", { headers: bearer })).status, 200);
   const basic = "Basic " + Buffer.from(`axi:${PASSWORD}`).toString("base64");

@@ -28,13 +28,13 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "axi-demo-"));
 process.on("exit", () => fs.rmSync(tmp, { recursive: true, force: true }));
 const site = path.join(tmp, "site");
 const files = build(site);
-check("the build has only frontend files (no server, Canvas, login or file storage code)", files.every((f) => f === "index.html" || /^(web|core|demo)\//.test(f)) && !files.some((f) => /server|store\.mjs|report\.mjs|canvas|auth|build\.mjs|package\.json|\.md$/.test(f)), files.filter((f) => /server|store|report|canvas|auth/.test(f)).join(" "));
+check("the build has only frontend files (no server, Canvas, login or file storage code)", files.every((f) => /^(index\.html|favicon\.(svg|ico)|apple-touch-icon\.png)$/.test(f) || /^(web|core|demo)\//.test(f)) && !files.some((f) => /server|store\.mjs|report\.mjs|canvas|auth|build\.mjs|package\.json|\.md$/.test(f)), files.filter((f) => /server|store|report|canvas|auth/.test(f)).join(" "));
 
 const conf = fs.readFileSync(path.join(TODO, "deploy/demo.nginx"), "utf8");
 // The fixed ones (Cache-Control is a $variable set per path, so it is not compared here)
 const HEADERS = Object.fromEntries([...conf.matchAll(/^\s*add_header\s+(\S+)\s+(?:"([^"]*)"|(\S+))\s+always;/gm)].map((m) => [m[1], m[2] ?? m[3]]).filter(([, v]) => !v.startsWith("$")));
 check("the CSP read from the nginx config has connect-src 'none'", /connect-src 'none'/.test(HEADERS["Content-Security-Policy"] ?? ""));
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".png": "image/png" };
 const LIVE = process.env.DEMO_URL?.replace(/\/$/, "");
 const port = await freePort(), base = LIVE ?? `http://127.0.0.1:${port}`;
 if (LIVE) {
