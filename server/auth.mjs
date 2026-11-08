@@ -84,6 +84,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const LOGIN_ERRORS = { 1: "密码不对", 2: "试得太多了，过十分钟再来" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The site's icons, linked from web/index.html and the login page; served without login, so the login page has one too
+const ICONS = new Set(["/favicon.svg", "/favicon.ico", "/apple-touch-icon.png"]);
+
 /** The login stage: handles the login page, signing in and signing out, and stops requests that are not signed in (pages
  *  redirect to the login page; the API and other files get 401). Only the login page, /api/health and the fonts are open
  *  without signing in. Returns true when the request has been handled (nothing more to do) */
@@ -102,7 +105,7 @@ export async function handleAuth(auth, req, res, url) {
     return true;
   }
   if (url.pathname === "/logout") { redirect(res, "/login", { "set-cookie": auth.clearCookie(secure) }); return true; }
-  const open = url.pathname === "/api/health" || (req.method === "GET" && url.pathname.startsWith("/fonts/"));
+  const open = url.pathname === "/api/health" || (req.method === "GET" && (url.pathname.startsWith("/fonts/") || ICONS.has(url.pathname)));
   if (open || auth.ok(req)) return false;
   const page = req.method === "GET" && (url.pathname === "/" || url.pathname.endsWith(".html"));
   if (page) redirect(res, `/login?next=${encodeURIComponent(url.pathname + url.search)}`);
@@ -119,7 +122,9 @@ export function loginPage({ next = "/", error = "", title = "ToDo" } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex, nofollow" />
 <title>${esc(title)}</title>
-<link rel="icon" href="data:," />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <style>
   @font-face { font-family: "Adventor Todo"; src: url("/fonts/adventor-todo-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
   @font-face { font-family: "Adventor Todo"; src: url("/fonts/adventor-todo-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }

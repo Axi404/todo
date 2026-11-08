@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The board's icon: the dashed frame of an item handed to an agent, with a check mark. The light tile under the frame keeps it
+       visible on dark tab bars in browsers that ignore the dark rule (Safari); where the rule applies, the tile goes and the lines
+       turn light -->
+  <style>
+    .t { fill: #fcfcfd; }
+    .s { fill: none; stroke: #0a0a0c; stroke-linecap: round; stroke-linejoin: round; }
+    @media (prefers-color-scheme: dark) { .t { fill: none; } .s { stroke: #fcfcfd; } }
+  </style>
+  <rect class="t" x="1.7" y="1.7" width="28.6" height="28.6" rx="8.8" />
+  <rect class="s" x="3" y="3" width="26" height="26" rx="7.5" stroke-width="2.6" stroke-dasharray="5.221 2.373" />
+  <path class="s" d="M10 16.4l4.2 4.2 8-8.8" stroke-width="3.2" />
+</svg>

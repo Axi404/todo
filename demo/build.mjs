@@ -1,7 +1,7 @@
 // Builds the demo site into a directory of static files that nginx serves as they are (deploy/demo.sh uploads it):
 //   node demo/build.mjs <output dir>        the output directory must not exist or must be empty
-// It contains only: index.html (web/index.html changed to load demo/main.js), web/styles.css, the fonts in web/fonts/, and the
-// modules reachable from demo/main.js through imports (in web/, core/ and demo/; the server's file storage in store.mjs, Canvas,
+// It contains only: index.html (web/index.html changed to load demo/main.js), the site's icons (at the top, where index.html
+// links them), web/styles.css, the fonts in web/fonts/, and the modules reachable from demo/main.js through imports (in web/, core/ and demo/; the server's file storage in store.mjs, Canvas,
 // login and the like are not reachable).
 // An import of node: or of a file that does not exist is an error, and nothing is built.
 import fs from "node:fs";
@@ -57,7 +57,10 @@ export function build(out, root = ROOT) {
   }
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(path.join(out, "index.html"), html);
-  return ["index.html", ...files];
+  // the icons index.html links (href="/favicon.svg" and the like) are in web/; the site serves them from the top
+  const icons = [...html.matchAll(/<link rel="(?:icon|apple-touch-icon)"[^>]*\bhref="\/([^"/]+)"/g)].map((m) => m[1]);
+  for (const f of icons) fs.copyFileSync(path.join(root, "web", f), path.join(out, f));
+  return ["index.html", ...icons, ...files];
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
