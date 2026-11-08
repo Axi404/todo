@@ -156,17 +156,20 @@ check("repeat removed", !(await doc()).items.find((i) => i.id === nodue.id).repe
 await ev(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })), true`); await sleep(150);
 
 // 7. recurring item: click the status pill to check in, click again to undo
+// (one that is due today: on a weekend a weekday item rests, and its pill opens the menu instead)
 d = await doc();
-const rep = d.items.find((i) => i.repeat && ["todo", "agent", "doing"].includes(i.status));
+let rep = null;
+for (const i of d.items.filter((i) => i.repeat && ["todo", "agent", "doing"].includes(i.status))) {
+  if (/今天要做|今天做完/.test(await ev(`${row(i.title)}?.querySelector('.pill')?.textContent ?? ""`))) { rep = i; break; }
+}
+check("there is a recurring item due today to check in", !!rep);
 if (rep) {
   const pillSel = `${row(rep.title)}.querySelector('.pill')`;
   const before = await ev(`${pillSel}.textContent`);
-  if (/今天要做|今天做完/.test(before)) {
-    await click(pillSel); await sleep(400);
-    const after = await ev(`${pillSel}.textContent`);
-    check("clicking a recurring item's status pill checks it in or undoes the check-in", after !== before, `${before} → ${after}`);
-    await click(pillSel); await sleep(400);
-  }
+  await click(pillSel); await sleep(400);
+  const after = await ev(`${pillSel}.textContent`);
+  check("clicking a recurring item's status pill checks it in or undoes the check-in", after !== before, `${before} → ${after}`);
+  await click(pillSel); await sleep(400);
 }
 
 // 8. move up
