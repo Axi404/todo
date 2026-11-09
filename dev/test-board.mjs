@@ -443,6 +443,26 @@ for (const cols of [1, 2, 3]) {
   check(`desktop with ${cols} agent columns: the cards have no ⋯, but have "收回来自己做" and "编辑"`, await ev(`(() => { const c = document.querySelector('[data-agent-card]'); const vis = (sel) => getComputedStyle(c.querySelector(sel)).display !== "none";
     return !vis('.b-more') && vis('.b-back') && vis('.b-edit') })()`));
 }
+// AoE deadlines on the calendar: on the local day they are actually due, in a few time zones (each in a tab of its own)
+{
+  const now = new Date(), ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  await api("POST", "/api/items", { group: "g-fx", title: "测试 AoE 截止", due: `${ym}-10 AoE` });
+  await api("POST", "/api/items", { group: "g-fx", title: "测试本地截止", due: `${ym}-10 23:59` });
+  const has = (t) => `[...el.querySelectorAll('.tt')].some((x) => x.textContent === ${JSON.stringify(t)})`;
+  const cellOf = (t) => `[...document.querySelectorAll('.cal-cell:not(.out)')].find((el) => ${has(t)})?.querySelector('.dn')?.textContent`;
+  const headingOf = (t) => `[...document.querySelectorAll('.cal-agenda .ag-day')].find((el) => ${has(t)})?.querySelector('h4')?.textContent`;
+  for (const [tz, day] of [["Asia/Shanghai", "11"], ["America/Los_Angeles", "11"], ["Etc/GMT+12", "10"]]) {
+    const t = await board.tab(board.base);
+    await t.send("Emulation.setTimezoneOverride", { timezoneId: tz }); await t.reload();
+    const got = [await t.ev(cellOf("测试 AoE 截止")), await t.ev(cellOf("测试本地截止")), await t.ev(headingOf("测试 AoE 截止"))];
+    check(`calendar in ${tz}: due on the 10th AoE goes on the ${day}th, 23:59 on the 10th stays there, and the phone list agrees`,
+      got[0] === day && got[1] === "10" && (got[2] ?? "").includes(`月${day}日`), JSON.stringify(got));
+    await t.close();
+  }
+  for (const i of (await doc()).items.filter((x) => ["测试 AoE 截止", "测试本地截止"].includes(x.title))) await api("DELETE", `/api/items/${i.id}`);
+  await reloadPage();
+}
+
 await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
 await reloadPage();
