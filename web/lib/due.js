@@ -32,11 +32,13 @@ export function dueInfo(s) {
   if (!p) return null;
   const at = dueAt(p), now = new Date(), h = (at - now) / 3600000;
   const day = new Date(p.y, p.mo - 1, p.d), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const atDay = new Date(at.getFullYear(), at.getMonth(), at.getDate()), dd = Math.round((atDay - today) / 86400000); // counted by the local day on which it is actually due
+  // The local day on which it is actually due: for an AoE deadline often the next day (23:59 AoE is 19:59 the next day in UTC+8)
+  const atDay = new Date(at.getFullYear(), at.getMonth(), at.getDate()), dd = Math.round((atDay - today) / 86400000);
   const rel = h < 0 ? (dd < 0 ? `过了 ${-dd} 天` : "已经过了") : h < 48 ? `还剩 ${Math.max(1, Math.floor(h))} 小时` : `还有 ${dd} 天`;
   const date = `${p.mo}月${p.d}日 周${WEEK[day.getDay()]}${p.hh != null ? ` ${pad2(p.hh)}:${pad2(p.mm)}` : ""}${p.aoe ? " AoE" : ""}`;
   const local = p.aoe ? `本地时间 ${at.getMonth() + 1}月${at.getDate()}日 ${pad2(at.getHours())}:${pad2(at.getMinutes())}` : "";
-  return { p, at, h, dd, rel, date, local, key: dueKey(p), soon: h < 24, over: h < 0 };
+  // date: as written (with AoE); key: that local day as YYYY-MM-DD, where the calendar puts it
+  return { p, at, h, dd, rel, date, local, key: ymd(atDay), soon: h < 24, over: h < 0 };
 }
 
 // Starts on a Monday and covers the whole month in full weeks

@@ -10,13 +10,15 @@ import { stripMd } from "../lib/md.js";
 
 const MAX = 3; // at most this many items listed per day
 
-// Month calendar: items with a due date are placed on their day, and open items past their due date are listed below.
+// Month calendar: items with a due date are placed on the local day they are actually due (an AoE deadline often falls on the
+// next day here; dueInfo's key), and open items past their due date are listed below.
 // On phones the cells are too narrow for text, so a cell shows only dots (one per item, at most 3) and this month's items
 // are listed by day under the calendar
 export function CalendarBlock() {
   const { doc } = useBoard();
   const [month, setMonth] = useState(null); // null = this month
-  const now = new Date(), first = month ?? firstOfMonth(now), todayKey = ymd(now);
+  const now = new Date(), first = month ?? firstOfMonth(now), todayKey = ymd(now), monthKey = ymd(first).slice(0, 7);
+  const thisMonth = (x) => x.d.key.startsWith(monthKey);
   const dated = doc.items.filter((i) => i.due && (OPEN.includes(i.status) || calendarShowsClosed(i, doc.theme))).map((i) => ({ i, d: dueInfo(i.due) })).filter((x) => x.d);
   const byDay = {};
   for (const x of dated) (byDay[x.d.key] ??= []).push(x);
@@ -24,7 +26,7 @@ export function CalendarBlock() {
   // then by time
   const closed = (x) => (OPEN.includes(x.i.status) ? 0 : 1);
   for (const k in byDay) byDay[k].sort((a, b) => closed(a) - closed(b) || a.d.at - b.d.at);
-  const inMonth = dated.filter((x) => OPEN.includes(x.i.status) && x.d.p.y === first.getFullYear() && x.d.p.mo === first.getMonth() + 1).length;
+  const inMonth = dated.filter((x) => OPEN.includes(x.i.status) && thisMonth(x)).length;
   const overdue = dated.filter((x) => OPEN.includes(x.i.status) && x.d.over).sort((a, b) => a.d.at - b.d.at);
   return html`<${Block} id="b-calendar" title="日历"><div class="card">
     <div class="cal-head"><span class="ttl">${first.getFullYear()} 年 ${first.getMonth() + 1} 月</span>
@@ -44,7 +46,7 @@ export function CalendarBlock() {
           ${xs.length ? html`<span class="cal-dots">${xs.slice(0, MAX).map((x) => html`<i key=${x.i.id} class=${OPEN.includes(x.i.status) ? "" : "closed"}></i>`)}</span>` : null}</div>`;
       })}
     </div>
-    <${Agenda} xs=${dated.filter((x) => x.d.p.y === first.getFullYear() && x.d.p.mo === first.getMonth() + 1).sort((a, b) => a.d.at - b.d.at)} />
+    <${Agenda} xs=${dated.filter(thisMonth).sort((a, b) => a.d.at - b.d.at)} />
     ${overdue.length ? html`<div class="cal-over">已经过了截止：${overdue.map((x) => html`<${Chip} key=${x.i.id} x=${x} inline />`)}</div>` : null}
   </div><//>`;
 }
@@ -56,14 +58,15 @@ function Agenda({ xs }) {
   if (!xs.length) return null;
   const days = [];
   for (const x of xs) {
-    if (days.at(-1)?.key !== x.d.key) days.push({ key: x.d.key, d: x.d, xs: [] });
+    if (days.at(-1)?.key !== x.d.key) days.push({ key: x.d.key, at: x.d.at, xs: [] });
     days.at(-1).xs.push(x);
   }
-  return html`<div class="cal-agenda">${days.map(({ key, d, xs: ys }) => html`<div class="ag-day" key=${key}>
-    <h4>${d.p.mo}月${d.p.d}日 周${WEEK[new Date(d.p.y, d.p.mo - 1, d.p.d).getDay()]}</h4>
+  return html`<div class="cal-agenda">${days.map(({ key, at, xs: ys }) => html`<div class="ag-day" key=${key}>
+    <h4>${at.getMonth() + 1}月${at.getDate()}日 周${WEEK[at.getDay()]}</h4>
     ${ys.map(({ i, d: di }) => {
       const open = OPEN.includes(i.status);
-      const hm = di.p.hh != null ? `${pad2(di.p.hh)}:${pad2(di.p.mm)}${di.p.aoe ? " AoE" : ""}` : "";
+      // under the local day's heading, an AoE deadline shows its local time
+      const hm = di.p.aoe ? `${pad2(di.at.getHours())}:${pad2(di.at.getMinutes())}` : di.p.hh != null ? `${pad2(di.p.hh)}:${pad2(di.p.mm)}` : "";
       return html`<button key=${i.id} class=${`ag-item ${open ? "" : "closed"} ${open && di.soon ? "soon" : ""}`} onClick=${() => locate(i.id)}>
         <${StatusIcon} s=${i.status} /><span class="tt"><${Md} text=${i.title} /></span>
         <span class="rel">${open ? di.rel : hm}</span>

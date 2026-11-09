@@ -14,6 +14,7 @@ export function DatePicker({ initial, save, close }) {
   const [time, setTime] = useState(p && p.hh != null ? `${pad2(p.hh)}:${pad2(p.mm)}` : "");
   const [aoe, setAoe] = useState(!!p?.aoe);
   const todayKey = ymd(now);
+  // days on which open items are due, marked with a dot: the local day, as on the calendar (an AoE deadline may be the next day)
   const has = new Set(doc.items.filter((i) => OPEN.includes(i.status)).map((i) => dueInfo(i.due)?.key).filter(Boolean));
   const value = (k, t, a) => `${k}${/^\d{1,2}:\d{2}$/.test(t) ? ` ${t.padStart(5, "0")}` : ""}${a ? " AoE" : ""}`;
   const apply = (k, t, a) => { if (k) save(value(k, t, a), false); };
