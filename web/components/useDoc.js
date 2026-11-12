@@ -7,7 +7,8 @@ import { noteChanges } from "../lib/motion.js";
 // While busy (editing, or a menu or the settings drawer open), data read in the background is held and swapped in when no
 // longer busy, so nothing is interrupted. Old data that arrives late does not overwrite newer data (compared by rev).
 // Every swap first compares with the old data and notes whose status just changed, which the cards animate (lib/motion.js).
-// save(method, path, body): sends one change and swaps in the whole new document the server returns; throws on error
+// save(method, path, body): sends one change and swaps in the whole new document the server returns; throws on error.
+// tweak(fn): changes the document here at once, before the server has it (fn changes a copy); the save that follows replaces it
 export function useDoc(busy) {
   const [doc, setDoc] = useState(null);
   const [err, setErr] = useState(null);
@@ -50,5 +51,7 @@ export function useDoc(busy) {
     take(d);
   }, [busy]);
 
-  return { doc, err, reload, save };
+  const tweak = (fn) => setDoc((old) => { if (!old) return old; const d = structuredClone(old); fn(d); return d; });
+
+  return { doc, err, reload, save, tweak };
 }

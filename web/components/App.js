@@ -27,7 +27,7 @@ export function App() {
   const [shownPop, popLeaving] = useLingering(pop, reducedMotion() ? 0 : 220);
   const [drawerOn, drawerShown] = usePresence(!!ui.settings, 300);
   const busy = !!(ui.editing || ui.adding || pop || ui.settings);
-  const { doc, err, reload, save } = useDoc(busy);
+  const { doc, err, reload, save, tweak } = useDoc(busy);
   const [toastMsg, toast] = useToast();
 
   const setUi = (patch) => setUiState((u) => ({ ...u, ...(typeof patch === "function" ? patch(u) : patch) }));
@@ -60,7 +60,7 @@ export function App() {
 
   if (!doc) return html`<main><div class="container"><div class="card" style="margin-top:40px">${err ? `读不到数据：${err}` : "加载中……"}</div></div></main>`;
   const t = doc.theme || {};
-  const ctx = { doc, ui, setUi, call, act: actions(call), toast, reload, pop, setPop, openPop, locate };
+  const ctx = { doc, ui, setUi, call, act: actions(call), toast, reload, tweak, pop, setPop, openPop, locate };
   return html`<${Ctx.Provider} value=${ctx}>
     <${Header} />
     ${t.hero !== false ? html`<div class="container"><${Hero} theme=${t} /></div>` : null}
