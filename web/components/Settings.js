@@ -9,6 +9,8 @@ import { HEROES, heroById } from "../lib/heroes/index.js";
 import { closedModeOf, recentDaysOf } from "../lib/done.js";
 import { agentColsOf, agentCardOf, agentDoneOf } from "../lib/theme.js";
 import { fxOptions, fxOf, preview } from "../lib/fx/index.js";
+import { seenFxOptions, seenFxOf, playSeen } from "../lib/fx/seen.js";
+import { MOVES, moveOf, moveAnimation } from "../lib/motion.js";
 import { sections } from "../lib/model.js";
 
 // The settings drawer that slides in from the right: appearance, effects, reminders, Canvas, places, section order,
@@ -51,6 +53,8 @@ export function Settings({ shown }) {
     <h4>效果</h4>
     <${Field} label="Agent 做完时" cls="chips-field"><${FxChips} kind="agent" k="agentFx" cur=${fxOf(t, "agent")} /><//>
     <${Field} label="打卡时" cls="chips-field"><${FxChips} kind="check" k="checkFx" cur=${fxOf(t, "check")} /><//>
+    <${Field} label="看过了时" cls="chips-field"><${Chips} k="seenFx" cur=${seenFxOf(t)} opts=${seenFxOptions()} play=${seenPreview} /><//>
+    <${Field} label="看过以后" cls="chips-field"><${Chips} k="agentMove" cur=${moveOf(t)} opts=${MOVES} play=${movePreview} /><//>
     <h4>提醒</h4>
     <${Field} label="多久没看算久"><${Range} k="staleHours" min=${1} max=${24} step=${1} value=${doc.settings?.staleHours ?? 3} unit="h" to="settings" /><//>
     <${CanvasSettings} />
@@ -71,6 +75,16 @@ function FxChips({ kind, k, cur }) {
   const choose = (id, e) => { if (id !== cur) act.theme({ [k]: id }); preview(kind, id, row.current, e.currentTarget); };
   return html`<span class="chips" ref=${row}>${fxOptions(kind).map(([id, name]) => html`<button key=${id} class=${`chip ${cur === id ? "on" : ""}`} onClick=${(e) => choose(id, e)}>${name}</button>`)}</span>`;
 }
+
+// The same kind of row for the "checked" effect and for how a checked card moves: clicking one selects it and plays it on
+// the option itself
+function Chips({ k, cur, opts, play }) {
+  const { act } = useBoard();
+  const choose = (id, e) => { if (id !== cur) act.theme({ [k]: id }); play(id, e.currentTarget); };
+  return html`<span class="chips">${opts.map(([id, name]) => html`<button key=${id} class=${`chip ${cur === id ? "on" : ""}`} onClick=${(e) => choose(id, e)}>${name}</button>`)}</span>`;
+}
+const seenPreview = (id, chip) => { const r = chip.getBoundingClientRect(); playSeen(null, chip, r.left + r.width / 2, r.top + r.height / 2, id); };
+const movePreview = (id, chip) => { if (id !== "none") chip.animate(...moveAnimation(id, -28, 0).self); };
 
 // Accent color: a few presets, or type any color
 const ACCENTS = ["", "hsl(200 29% 45%)", "hsl(262 32% 52%)", "hsl(150 25% 38%)", "hsl(14 70% 50%)"];

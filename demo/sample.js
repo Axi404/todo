@@ -11,7 +11,7 @@ export const THEME = {
   mode: "auto", font: "default", fontSize: 15, width: 1040, radius: 12, density: "comfortable", layout: "stacked",
   showStats: true, title: "Axi's ToDo", accent: "", customCss: "", showCalendar: true, showRepeat: true,
   hero: true, heroStyle: "landscape", heroHeight: 200, agentCols: 3, agentCard: "gesture", agentDone: "slide", showToc: true,
-  closedMode: "recent", recentDays: 1, showDone: true, doneChart: "bars", agentFx: "dust", checkFx: "confetti",
+  closedMode: "recent", recentDays: 1, showDone: true, doneChart: "bars", agentFx: "dust", checkFx: "confetti", seenFx: "ripple", agentMove: "lift",
 };
 
 // Done items: [title, days since done], in order of completion within each card

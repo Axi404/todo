@@ -72,3 +72,58 @@ export function fold(el, dir, { delay = 0, duration = dir === "in" ? FOLD_IN : F
   if (dir === "in") anim.finished.then(() => { el.style.overflow = ""; }, () => {});
   return anim;
 }
+
+// ---- Agent cards changing places ----
+// An agent card just recorded as checked moves to the back of the Agent block (it is sorted by when it was last checked).
+// theme.agentMove chooses how (AgentBlock.js useSlide plays it; the cards that make room follow):
+//   lift    it floats up where it is (scaled up a little, a deep shadow), pauses, travels to its new place still lifted,
+//           and lands; the others wait for it to lift, then move aside
+//   slide   everything slides straight to the new places
+//   fade    it fades out where it was and fades in at its new place, the others slide in between
+//   spring  everything slides with a little overshoot
+//   none    no animation
+export const MOVES = [["lift", "飘起来"], ["slide", "滑过去"], ["fade", "淡入淡出"], ["spring", "弹一下"], ["none", "不要"]];
+export const moveOf = (t) => (MOVES.some(([id]) => id === t?.agentMove) ? t.agentMove : "lift");
+
+const seenMarks = new Map(); // id → { at, moved }: checked from this page just now
+/** Marks an agent card as just checked here, so that its move plays the chosen style (the move comes once the save returns) */
+export const markSeen = (id) => seenMarks.set(id, { at: performance.now(), moved: false });
+/** The mark, while it is fresh (3 s) */
+export function justSeen(id) {
+  const m = seenMarks.get(id);
+  if (m && performance.now() - m.at > 3000) { seenMarks.delete(id); return null; }
+  return m ?? null;
+}
+
+const REST = "0 0 0 0 rgb(0 0 0 / 0), 0 0 0 0 rgb(0 0 0 / 0)";
+const liftShadow = () => getComputedStyle(document.documentElement).getPropertyValue("--lift-shadow").trim() || REST;
+
+/** The animation of the card that moved (by dx, dy from its old place to the new one; 0, 0 when it stays): [keyframes, timing],
+ *  and the timing of the cards that make room. Animates translate, scale and the like, never transform, so that it adds to
+ *  the tilt */
+export function moveAnimation(style, dx, dy) {
+  const from = `${dx}px ${dy}px`;
+  if (style === "lift") {
+    const up = liftShadow(), still = dx === 0 && dy === 0;
+    return {
+      self: [[
+        { translate: from, scale: 1, boxShadow: REST, easing: "cubic-bezier(.2, .7, .3, 1)" },
+        { translate: `${dx}px ${dy - 8}px`, scale: 1.05, boxShadow: up, offset: still ? 0.4 : 0.24, easing: "cubic-bezier(.45, 0, .25, 1)" },
+        { translate: "0px -8px", scale: 1.05, boxShadow: up, offset: still ? 0.6 : 0.78, easing: "cubic-bezier(.3, 0, .5, 1)" },
+        { translate: "0px 0px", scale: 1, boxShadow: REST },
+      ], { duration: still ? 700 : 1050 }],
+      others: { delay: 250, duration: 560, easing: "cubic-bezier(.45, 0, .25, 1)" },
+    };
+  }
+  if (style === "fade") return {
+    self: [[
+      { translate: from, opacity: 1, scale: 1 },
+      { translate: from, opacity: 0, scale: 0.96, offset: 0.35 },
+      { translate: "0px 0px", opacity: 0, scale: 0.96, offset: 0.55 },
+      { translate: "0px 0px", opacity: 1, scale: 1 },
+    ], { duration: 760, easing: "ease-in-out" }],
+    others: { delay: 230, duration: 420, easing: "cubic-bezier(.45, 0, .25, 1)" },
+  };
+  const slide = { duration: style === "spring" ? 650 : 460, easing: style === "spring" ? "cubic-bezier(.34, 1.45, .55, 1)" : "cubic-bezier(.22, 1, .36, 1)" };
+  return { self: [[{ translate: from }, { translate: "0px 0px" }], slide], others: slide };
+}

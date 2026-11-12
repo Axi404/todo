@@ -31,6 +31,8 @@ export const DEFAULT_THEME = {
   doneChart: "bars",       // chart above "recently done": bars = two weeks of bars / heatmap (list in web/components/done/index.js)
   agentFx: "shatter",      // completion effect for agent cards, and (checkFx) for check-ins: none / random / one from the list (web/lib/fx/index.js)
   checkFx: "confetti",
+  seenFx: "ripple",        // an agent card recorded as checked: ripple / eye / glow / none / random (web/lib/fx/seen.js)
+  agentMove: "lift",       // how a checked agent card moves to the back: lift / slide / fade / spring / none (web/lib/motion.js)
 };
 // canvasGroup: the card (group id) that synced Canvas assignments go to; when empty, the first sync picks or creates a courses card
 // (see canvas/merge.mjs)

@@ -6,8 +6,9 @@ import { groupOf } from "../lib/model.js";
 import { ago, dur, hoursSince } from "../lib/time.js";
 import { repeatState, agentActive } from "../lib/repeat.js";
 import { agentColsOf, agentCardOf, agentDoneOf } from "../lib/theme.js";
-import { reducedMotion, handedOff } from "../lib/motion.js";
+import { reducedMotion, handedOff, moveOf, markSeen, justSeen, moveAnimation } from "../lib/motion.js";
 import { leaveCard } from "../lib/fx/index.js";
+import { playSeen } from "../lib/fx/seen.js";
 import { Seg } from "./controls.js";
 import { StatusIcon, EditIcon, LocateIcon, BackIcon } from "./icons.js";
 
@@ -18,7 +19,7 @@ export function AgentBlock() {
   const { doc, ui } = useBoard();
   const stale = doc.settings?.staleHours ?? 3, cols = agentColsOf(doc.theme);
   const list = doc.items.filter((i) => agentActive(i)).sort((a, b) => (a.agent?.lastSeen ?? "").localeCompare(b.agent?.lastSeen ?? ""));
-  const grid = useSlide();
+  const grid = useSlide(doc.theme);
   const side = html`<h2>Agent</h2>${ui.editMode ? html`<${Seg} k="agentCols" cur=${cols} opts=${[[1, "一列"], [2, "两列"], [3, "三列"]]} />` : null}`;
   return html`<${Block} id="b-agent" toc="Agent" side=${side}>
     ${list.length ? html`<div class="agent-wrap"><div class=${`agent-grid cols-${cols}`} ref=${grid}>${list.map((i) => html`<${AgentCard} key=${i.id} item=${i} stale=${stale} />`)}</div></div>`
@@ -26,9 +27,10 @@ export function AgentBlock() {
   <//>`;
 }
 
-// When a card leaves or arrives (an item is done, a new one is handed off, the editor opens), the remaining cards slide from
-// their old positions to the new ones instead of jumping
-function useSlide() {
+// When cards change places (one was checked and moves to the back, one leaves or arrives, the editor opens), the others
+// move from their old positions to the new ones instead of jumping. The card just checked from this page plays the move
+// chosen in settings (theme.agentMove, lib/motion.js), and the cards making room follow it; anything else just slides
+function useSlide(theme) {
   const ref = useRef(null), last = useRef(null);
   useLayoutEffect(() => {
     const g = ref.current;
@@ -38,13 +40,39 @@ function useSlide() {
     const prev = last.current;
     last.current = pos;
     if (!prev || reducedMotion() || [...prev.keys()].join() === [...pos.keys()].join()) return;
-    for (const n of cards) {
-      const a = prev.get(n.dataset.agentCard), b = pos.get(n.dataset.agentCard);
-      if (!a || (a[0] === b[0] && a[1] === b[1])) continue;
-      n.animate([{ translate: `${a[0] - b[0]}px ${a[1] - b[1]}px` }, { translate: "0 0" }], { duration: 460, easing: "cubic-bezier(.22, 1, .36, 1)" });
+    const style = moveOf(theme);
+    if (style === "none") return;
+    const moved = cards.filter((n) => { const a = prev.get(n.dataset.agentCard), b = pos.get(n.dataset.agentCard); return a && (a[0] !== b[0] || a[1] !== b[1]); });
+    const lead = moved.find((n) => justSeen(n.dataset.agentCard) && !justSeen(n.dataset.agentCard).moved);
+    const plan = moveAnimation(lead ? style : style === "spring" ? "spring" : "slide", 0, 0);
+    for (const n of moved) {
+      const a = prev.get(n.dataset.agentCard), b = pos.get(n.dataset.agentCard), dx = a[0] - b[0], dy = a[1] - b[1];
+      if (n === lead) { justSeen(n.dataset.agentCard).moved = true; play(n, ...moveAnimation(style, dx, dy).self); }
+      else n.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }], { ...plan.others, fill: "backwards" });
     }
   });
   return ref;
+}
+
+// The moving card's own animation: above the others, and flat (no tilt) while it plays
+function play(card, keyframes, timing) {
+  card.dataset.still = "1";
+  card.style.zIndex = "2";
+  const done = () => { delete card.dataset.still; card.style.zIndex = ""; };
+  card.animate(keyframes, timing).finished.then(done, done);
+}
+
+// Recorded as checked from this page: the effect where it was clicked (theme.seenFx), then the save; the card then moves to
+// the back with the chosen move (useSlide). If it was the last one already and stays put, the move plays in place
+async function checked(card, x, y, theme, it, id) {
+  playSeen(theme, card, x, y);
+  markSeen(id);
+  if (!(await it.patch({ seen: true }, "记下了"))) return;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const m = justSeen(id);
+  if (!m || m.moved || !card.isConnected || reducedMotion() || moveOf(theme) !== "lift") return;
+  m.moved = true;
+  play(card, ...moveAnimation("lift", 0, 0).self);
 }
 
 function AgentCard({ item: i, stale }) {
@@ -75,7 +103,7 @@ function ButtonsCard({ item: i, stale }) {
     <h3><${Md} text=${i.title} /></h3>
     <${Info} i=${i} g=${g} stale=${stale} />
     <div class="row">
-      <button class="btn dark" onClick=${() => it.patch({ seen: true }, "记下了")}>看过了</button>
+      <button class="btn dark" onClick=${(e) => { const b = e.currentTarget.getBoundingClientRect(); checked(ref.current, b.left + b.width / 2, b.top + b.height / 2, doc.theme, it, i.id); }}>看过了</button>
       <button class="btn" onClick=${(e) => finish(ref.current, e.currentTarget, doc, it, st)}>${st ? "✓ 今天做完了" : "✓ 做完了"}</button>
       <button class="btn b-back" onClick=${() => it.patch({ status: "doing" })}>收回来自己做</button>
       <button class="btn b-edit" onClick=${() => setUi({ editing: `i:${i.id}@agent`, adding: null })}>编辑</button>
@@ -85,18 +113,17 @@ function ButtonsCard({ item: i, stale }) {
 }
 
 // The gesture layout (the default): with a mouse the card tilts towards the pointer like a seesaw, the side under it pressed
-// down; a double-click (a double tap on phones) records that it was checked; done is given by sliding the knob across or by
+// down, all of it as one flat plate; a double-click (a double tap on phones) records that it was checked; done is given by sliding the knob across or by
 // holding the button (theme.agentDone); locate, take back and edit are the round buttons at the top right
 function GestureCard({ item: i, stale }) {
   const { doc, setUi, act, locate } = useBoard();
   const ref = useRef(null);
   useTilt(ref);
   const g = groupOf(doc, i.group), it = act.item(i.id), st = repeatState(i);
-  const tap = useDoubleTap((x, y) => { ack(ref.current, x, y); it.patch({ seen: true }, "记下了"); });
+  const tap = useDoubleTap((x, y) => checked(ref.current, x, y, doc.theme, it, i.id));
   const done = (origin) => finish(ref.current, origin, doc, it, st);
   const label = st ? "今天做完了" : "做完了";
   return html`<div class=${`card agent g ${handedOff(i.id) ? "arrive" : ""}`} data-agent-card=${i.id} ref=${ref} ...${tap}>
-    <span class="ag-acks" aria-hidden="true"></span>
     <div class="ag-head"><h3><${Md} text=${i.title} /></h3>
       <span class="ag-tools">
         <button class="rnd t-locate" title="定位" onClick=${() => locate(i.id)}><${LocateIcon} /></button>
@@ -164,18 +191,6 @@ function useDoubleTap(onDouble) {
     },
     onMouseDown: (e) => { if (e.detail > 1 && !e.target.closest(SKIP)) e.preventDefault(); },
   };
-}
-
-// Checked: a ring spreads from where the card was double-clicked
-function ack(card, x, y) {
-  const box = card?.querySelector(".ag-acks");
-  if (!box || reducedMotion()) return;
-  const r = card.getBoundingClientRect(), ring = document.createElement("i");
-  ring.style.left = `${x - r.left}px`;
-  ring.style.top = `${y - r.top}px`;
-  box.append(ring);
-  ring.animate([{ transform: "translate(-50%, -50%) scale(.15)", opacity: 0.55 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }],
-    { duration: 700, easing: "cubic-bezier(.2, .8, .3, 1)" }).finished.finally(() => ring.remove());
 }
 
 // Slide to mark it done: drag the knob to the far end of the track (most of the way is enough); let go earlier and it slides
