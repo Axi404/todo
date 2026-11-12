@@ -16,6 +16,7 @@ The interface is in Chinese.
 - Recurring items with daily check-ins, streaks, and an optional time at which their day rolls over
 - Due dates, including AoE, and a month calendar
 - Done items stay in their card for a few days, then fold away; a chart of what got done (two weeks of bars, or a heatmap)
+- Agent cards that tilt under the pointer: a double-click records that you checked, sliding or holding marks it done (or the older layout, with buttons)
 - Effects when something is done or checked in, and animations in the header; all optional, and off when the system asks for reduced motion
 - Appearance settings: light or dark, font, size, width, density, layout, custom CSS
 - An optional password, and optional sync of assignments from Canvas LMS
