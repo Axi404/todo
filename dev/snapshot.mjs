@@ -52,8 +52,7 @@ async function shoot(out, src) {
       await p.click(`${row}.querySelector('.pill')`); await sleep(200); await p.click(opt(label)); await sleep(250); await save(what); await p.esc(); await sleep(200);
     }
     await p.click(`${row}.querySelector('.tool[title="编辑"]')`); await sleep(300); await save("form"); await p.esc(); await sleep(200);
-    if (phone) { await p.click(`document.querySelector('[data-agent-card] .b-more')`); await sleep(200); await p.click(opt("编辑")); }
-    else await p.click(`[...document.querySelectorAll('[data-agent-card] .btn')].find((b) => b.textContent === "编辑")`);
+    await p.click(`document.querySelector('[data-agent-card] .t-edit')`);
     await sleep(300); await save("agentform"); await p.esc(); await sleep(200);
     await p.ev("scrollTo(0, 0), true");
     await p.click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(500); await save("settings");

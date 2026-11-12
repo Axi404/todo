@@ -79,9 +79,13 @@ check('the courses section has "同步 Canvas", last synced an hour ago', (await
 await shoot("1-desktop");
 
 // ---- click around ----
-const agentBtn = `[...document.querySelectorAll('[data-agent-card="t01"] .btn')].find((b) => b.textContent.includes("做完了"))`;
-await click(agentBtn);
-check('clicking "做完了" on an agent card: that card leaves, four are left', await waitFor(`document.querySelectorAll('[data-agent-card]').length === 4`, 5000));
+// slide the knob of an agent card across (the gesture cards are the default)
+const kn = await ev(`(() => { const c = document.querySelector('[data-agent-card="t01"]'); c.scrollIntoView({ block: "center" });
+  const k = c.querySelector('.knob').getBoundingClientRect(), t = c.querySelector('.ag-done').getBoundingClientRect(); return { x: k.left + k.width / 2, y: k.top + k.height / 2, d: t.width - k.width - 6 } })()`);
+await page.mouse("mouseMoved", kn.x, kn.y); await page.mouse("mousePressed", kn.x, kn.y);
+for (let s = 1; s <= 12; s++) { await page.mouse("mouseMoved", kn.x + (kn.d * s) / 12, kn.y); await sleep(12); }
+await page.mouse("mouseReleased", kn.x + kn.d, kn.y);
+check('sliding "做完了" across on an agent card: that card leaves, four are left', await waitFor(`document.querySelectorAll('[data-agent-card]').length === 4`, 5000));
 check("it shows as done in its own card", await waitFor(`/完成/.test(${row("补消融实验：去掉数据增强再跑一遍")}?.querySelector('.pill')?.textContent ?? "")`, 3000));
 
 const pill = `${row("背 20 个单词")}.querySelector('.pill')`;

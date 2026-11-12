@@ -39,7 +39,8 @@ function fixtures(d) {
 }
 // A fixed look for the tests (independent of the settings saved in the data): hero off (saves time), closed items hidden,
 // three agent columns, bars for "recently done"
-const board = await startBoard({ data: fixtures, theme: { hero: false, closedMode: "none", agentCols: 3, layout: "stacked", doneChart: "bars" } });
+// agentCard: buttons: the checks below use the older agent cards; the gesture cards (the default) have a section of their own at the end
+const board = await startBoard({ data: fixtures, theme: { hero: false, closedMode: "none", agentCols: 3, layout: "stacked", doneChart: "bars", agentCard: "buttons" } });
 const page = await board.tab();
 const { api } = board, { send, ev, click, type, errors } = page;
 const doc = () => api("GET", "/api/todo");
@@ -512,6 +513,108 @@ tiny = await small(".drawer input, .drawer textarea, .drawer select");
 check("phone in landscape: the inputs in the settings are at least 16px", tiny.length === 0, JSON.stringify(tiny));
 await ev(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })), true`); await sleep(500);
 await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send("Emulation.clearDeviceMetricsOverride");
+
+// ---- Gesture agent cards (the default layout): a tab of their own, desktop and then phone ----
+{
+  await api("PATCH", "/api/theme", { agentCard: "gesture", agentDone: "slide", agentFx: "none" });
+  for (const n of ["一", "二", "三", "四", "五", "六"]) await api("POST", "/api/items", { group: "g-fx", title: `手势${n}`, status: "agent", agent: { where: "测试机" } });
+  const gid = Object.fromEntries((await doc()).items.filter((i) => i.title.startsWith("手势")).map((i) => [i.title.slice(2), i.id]));
+  const item = async (k) => (await doc()).items.find((i) => i.id === gid[k]);
+  const gp = await board.tab(board.base, { width: 1440, height: 900, scale: 1 });
+  const C = (k) => `document.querySelector('[data-agent-card="${gid[k]}"]')`;
+  const rect = (sel) => gp.ev(`(() => { const e = ${sel}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height } })()`);
+  const press = async (x, y, n = 1) => { await gp.mouse("mouseMoved", x, y); await gp.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: n }); await gp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: n }); };
+  const drag = async (sel, frac) => {
+    const k = await rect(`${sel}.querySelector('.knob')`), t = await rect(`${sel}.querySelector('.ag-done')`);
+    const x0 = k.x + k.w / 2, y0 = k.y + k.h / 2, dx = (t.w - k.w - 6) * frac;
+    await gp.mouse("mouseMoved", x0, y0); await gp.mouse("mousePressed", x0, y0);
+    for (let s2 = 1; s2 <= 12; s2++) { await gp.mouse("mouseMoved", x0 + (dx * s2) / 12, y0); await sleep(12); }
+    await gp.mouse("mouseReleased", x0 + dx, y0);
+  };
+  check("gesture cards: three round buttons (locate, take back, edit) and a slide track, no row of buttons",
+    await gp.ev(`(() => { const c = ${C("一")}; return [...c.querySelectorAll('.ag-tools .rnd')].map((b) => b.title).join() === "定位,收回来自己做,编辑" && !!c.querySelector('.ag-done.slide .knob') && !c.querySelector('.row') })()`));
+
+  // tilt: the side under the pointer is pressed down, and it eases back flat when the pointer leaves
+  let r = await rect(C("一"));
+  await gp.mouse("mouseMoved", r.x + r.w / 2, r.y + r.h / 2); await gp.mouse("mouseMoved", r.x + r.w * 0.95, r.y + r.h * 0.08); await sleep(300);
+  const tilt = await gp.ev(`(() => { const c = ${C("一")}; return { on: c.classList.contains('tilting'), ry: parseFloat(c.style.getPropertyValue('--ry')), rx: parseFloat(c.style.getPropertyValue('--rx')), t: getComputedStyle(c).transform } })()`);
+  check("hover at the top right: the card tilts, the top right pressed down (rotateY > 0, rotateX > 0), at most 6°", tilt.on && tilt.ry > 2 && tilt.ry <= 6 && tilt.rx > 2 && tilt.rx <= 6 && tilt.t.startsWith("matrix3d"), JSON.stringify(tilt));
+  await gp.mouse("mouseMoved", r.x + r.w * 0.05, r.y + r.h * 0.92); await sleep(300);
+  check("…at the bottom left it tilts the other way", await gp.ev(`(() => { const c = ${C("一")}; return parseFloat(c.style.getPropertyValue('--ry')) < -2 && parseFloat(c.style.getPropertyValue('--rx')) < -2 })()`));
+  await gp.mouse("mouseMoved", 3, 3); await sleep(800);
+  check("…and lies flat again once the pointer has left", await gp.ev(`(() => { const c = ${C("一")}; return !c.classList.contains('tilting') && getComputedStyle(c).transform === "none" })()`));
+
+  // double-click: checked (lastSeen), a ring where it was clicked, no word selected; not on the done control
+  const seen0 = (await item("一")).agent.lastSeen;
+  r = await rect(`${C("一")}.querySelector('.where')`);
+  await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await sleep(60);
+  check("double-click on the card: a ring spreads from there, and no word is selected", await gp.ev(`!!${C("一")}.querySelector('.ag-acks i') && getSelection().toString() === ""`));
+  await sleep(500);
+  check("…the item is recorded as checked just now", (await item("一")).agent.lastSeen > seen0 && /记下了/.test(await gp.ev(`document.querySelector('.toast').textContent`)));
+  const seen1 = (await item("二")).agent.lastSeen;
+  r = await rect(`${C("二")}.querySelector('.ag-done .lbl')`);
+  await press(r.x + r.w / 2, r.y + r.h / 2, 1); await press(r.x + r.w / 2, r.y + r.h / 2, 2); await sleep(500);
+  check("a double-click on the done control does not count", (await item("二")).agent.lastSeen === seen1);
+
+  // slide: let go halfway and it slides back; all the way and the item is done
+  await drag(C("二"), 0.5); await sleep(600);
+  check("slide halfway and let go: the knob slides back and nothing is saved", (await item("二")).status === "agent"
+    && (await gp.ev(`(() => { const t = ${C("二")}.querySelector('.ag-done'); return t.style.getPropertyValue('--x') === "0px" && !${C("二")}.dataset.still })()`)));
+  await drag(C("二"), 1);
+  check("slide all the way: the card leaves and the item is done", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["二"]}").status === "done")`, 4000)
+    && (await gp.ev(`(async () => { for (let k = 0; k < 40 && document.querySelector('[data-agent-card="${gid["二"]}"]'); k++) await new Promise((r) => setTimeout(r, 100)); return !document.querySelector('[data-agent-card="${gid["二"]}"]') })()`)));
+  await gp.ev(`${C("三")}.querySelector('.knob').focus(), true`); await gp.key("Enter", "Enter", 13);
+  check("Enter on the knob does the same", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["三"]}").status === "done")`, 4000));
+
+  // the round buttons
+  await gp.click(`${C("四")}.querySelector('.t-locate')`);
+  // the page scrolls there smoothly: wait until it has stopped
+  await gp.ev(`(async () => { let y = -1; for (let k = 0; k < 40; k++) { await new Promise((r) => setTimeout(r, 100)); if (k > 3 && scrollY === y) break; y = scrollY; } return true })()`);
+  const found = await gp.ev(`(() => { const r = document.querySelector('main .items .item[data-id="${gid["四"]}"]'); if (!r) return { none: true }; const b = r.getBoundingClientRect(); return { cls: r.className, top: Math.round(b.top), bottom: Math.round(b.bottom), h: innerHeight } })()`);
+  check("locate: the item is found in its card below and highlighted", /located/.test(found.cls ?? "") && found.top > 0 && found.bottom < found.h, JSON.stringify(found));
+  await gp.click(`${C("四")}.querySelector('.t-back')`); await sleep(500);
+  check("take back: the item is mine again (doing)", (await item("四")).status === "doing");
+  await gp.click(`${C("五")}.querySelector('.t-edit')`); await sleep(300);
+  check("edit: the edit form opens in the Agent block", (await gp.ev(`document.querySelector('.agent-grid .form input')?.value`)) === "手势五");
+  await gp.esc(); await sleep(300);
+
+  // hold: let go early and it drains back; hold long enough and the item is done
+  await api("PATCH", "/api/theme", { agentDone: "hold" }); await gp.reload();
+  check("hold mode: a button to hold instead of the track", await gp.ev(`!!${C("五")}.querySelector('button.ag-done.hold') && !${C("五")}.querySelector('.knob')`));
+  r = await rect(`${C("五")}.querySelector('.ag-done')`);
+  await gp.mouse("mouseMoved", r.x + r.w / 2, r.y + r.h / 2); await gp.mouse("mousePressed", r.x + r.w / 2, r.y + r.h / 2); await sleep(300);
+  const mid = await gp.ev(`(() => { const f = ${C("五")}.querySelector('.ag-done .fill'); return new DOMMatrix(getComputedStyle(f).transform).a })()`);
+  await gp.mouse("mouseReleased", r.x + r.w / 2, r.y + r.h / 2); await sleep(500);
+  check("hold for 0.3 s and let go: it had filled part way, drains back, nothing is saved", mid > 0.05 && mid < 0.8 && (await item("五")).status === "agent"
+    && (await gp.ev(`!${C("五")}.querySelector('.ag-done .fill').getAnimations().length && !${C("五")}.dataset.still`)), `filled ${mid}`);
+  await gp.mouse("mousePressed", r.x + r.w / 2, r.y + r.h / 2); await sleep(1100); await gp.mouse("mouseReleased", r.x + r.w / 2, r.y + r.h / 2);
+  check("hold for 1 s: the item is done", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["五"]}").status === "done")`, 4000));
+
+  // prefers-reduced-motion: no tilt
+  await gp.media([{ name: "prefers-reduced-motion", value: "reduce" }]); await gp.reload();
+  r = await rect(C("六"));
+  await gp.mouse("mouseMoved", r.x + r.w / 2, r.y + r.h / 2); await gp.mouse("mouseMoved", r.x + r.w * 0.9, r.y + r.h * 0.1); await sleep(300);
+  check("with prefers-reduced-motion: no tilt", await gp.ev(`!${C("六")}.classList.contains('tilting') && getComputedStyle(${C("六")}).transform === "none"`));
+  await gp.close();
+
+  // phone: a double tap records it as checked; sliding with a finger marks it done
+  await api("PATCH", "/api/theme", { agentDone: "slide" });
+  const ph = await board.tab(board.base, { width: 390, height: 844, scale: 2, phone: true });
+  const seen6 = (await item("六")).agent.lastSeen;
+  const pr = await ph.ev(`(() => { const e = ${C("六")}.querySelector('.when'); e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + 30, y: r.top + r.height / 2 } })()`);
+  await ph.send("Input.synthesizeTapGesture", { x: pr.x, y: pr.y, duration: 30, tapCount: 1, gestureSourceType: "touch" }); await sleep(90);
+  await ph.send("Input.synthesizeTapGesture", { x: pr.x, y: pr.y, duration: 30, tapCount: 1, gestureSourceType: "touch" }); await sleep(600);
+  check("phone: a double tap records it as checked", (await item("六")).agent.lastSeen > seen6);
+  check("phone: the round buttons are finger-sized (34px)", await ph.ev(`[...${C("六")}.querySelectorAll('.rnd')].every((b) => b.offsetWidth === 34)`));
+  const kn = await ph.ev(`(() => { const k = ${C("六")}.querySelector('.knob').getBoundingClientRect(), t = ${C("六")}.querySelector('.ag-done').getBoundingClientRect(); return { x: k.left + k.width / 2, y: k.top + k.height / 2, d: t.width - k.width - 6 } })()`);
+  const touch = (type, x) => ph.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y: kn.y }] });
+  await touch("touchStart", kn.x);
+  for (let s2 = 1; s2 <= 12; s2++) { await touch("touchMove", kn.x + (kn.d * s2) / 12); await sleep(16); }
+  await touch("touchEnd");
+  check("phone: sliding the knob across with a finger marks it done", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["六"]}").status === "done")`, 4000));
+  check("gesture cards: no errors", gp.errors.length === 0 && ph.errors.length === 0, [...gp.errors, ...ph.errors].slice(0, 3).join(" | "));
+  await ph.close();
+}
 
 check("no errors at any point", errors.length === 0, errors.slice(0, 3).join(" | "));
 await page.close();
