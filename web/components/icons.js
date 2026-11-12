@@ -21,6 +21,10 @@ export const StatusIcon = ({ s }) => html`<svg class="si" viewBox="0 0 16 16" ar
 // whirls once around and fades out, for the moment the item is handed off
 export const AgentFrame = ({ handoff }) => html`<svg class="ants" aria-hidden="true"><rect class="a" x=".5" y=".5" width="100%" height="100%" rx="7.5" />${
   handoff ? html`<rect class="in" x=".5" y=".5" width="100%" height="100%" rx="7.5" />` : null}</svg>`;
+// The round buttons on a gesture agent card: locate (a crosshair: find the item in its card below) and take back (an arrow
+// turning back)
+export const LocateIcon = () => html`<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="4.6" /><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none" /><path d="M8 1.2v2.2M8 12.6v2.2M1.2 8h2.2M12.6 8h2.2" /></svg>`;
+export const BackIcon = () => html`<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.6 2.6 7 6 10.4" /><path d="M2.8 7h6.7a3.9 3.9 0 0 1 0 7.8H7.6" /></svg>`;
 export const EditIcon = () => html`<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 2.8l2.5 2.5-7.7 7.7-3.2.7.7-3.2z" /><path d="M9.3 4.2l2.5 2.5" /></svg>`;
 // Sync (Canvas): two arcs with arrowheads; warning: an exclamation mark in a circle
 export const SyncIcon = () => html`<svg class="sync-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>`;

@@ -55,7 +55,7 @@ export async function leaveCard(card, origin, theme, save) {
   if (!card || card.dataset.leaving) return;
   card.dataset.leaving = "1"; // not clickable while the effect plays (pointer-events: none in the stylesheet)
   const fx = celebrate("agent", theme, card, origin);
-  const fade = fx?.took ? null : card.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.98)" }], { duration: reducedMotion() ? 0 : 220, easing: "ease", fill: "forwards" });
+  const fade = fx?.took ? null : card.animate([{ opacity: 1, scale: 1 }, { opacity: 0, scale: 0.98 }], { duration: reducedMotion() ? 0 : 220, easing: "ease", fill: "forwards" });
   await Promise.all([fx?.ready, fade?.finished.catch(() => {})]);
   if (await save()) return;
   fade?.cancel();

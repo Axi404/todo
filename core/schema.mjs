@@ -22,6 +22,8 @@ export const DEFAULT_THEME = {
   heroStyle: "landscape",      // which header animation; the list is in web/lib/heroes/index.js
   heroHeight: 220,
   agentCols: 1,            // columns in the agent block: 1 / 2 / 3
+  agentCard: "gesture",    // agent cards: gesture (tilt on hover, double-click for checked, slide or hold for done, round icons) / buttons (the older layout)
+  agentDone: "slide",      // how a gesture card is marked done: slide (drag the knob across) / hold (press and hold)
   showToc: true,           // table of contents on the left (only when the margins are wide enough)
   closedMode: "recent",    // closed items: none = hidden / recent = only the last few days stay in cards / all (see web/lib/done.js)
   recentDays: 3,           // with closedMode recent, how many days of done items stay in cards: 1 / 3 / 7

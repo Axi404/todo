@@ -7,7 +7,7 @@ import { CanvasSettings } from "./Canvas.js";
 import { CHARTS, chartById } from "./done/index.js";
 import { HEROES, heroById } from "../lib/heroes/index.js";
 import { closedModeOf, recentDaysOf } from "../lib/done.js";
-import { agentColsOf } from "../lib/theme.js";
+import { agentColsOf, agentCardOf, agentDoneOf } from "../lib/theme.js";
 import { fxOptions, fxOf, preview } from "../lib/fx/index.js";
 import { sections } from "../lib/model.js";
 
@@ -32,6 +32,8 @@ export function Settings({ shown }) {
     <${Field} label="密度"><${Seg} k="density" cur=${t.density} opts=${[["comfortable", "宽松"], ["compact", "紧凑"]]} /><//>
     <${Field} label="排版"><${Seg} k="layout" cur=${t.layout} opts=${[["sidebar", "左标题右卡片"], ["stacked", "标题在上"]]} /><//>
     <${Field} label="Agent 排列"><${Seg} k="agentCols" cur=${agentColsOf(t)} opts=${[[1, "一列"], [2, "两列"], [3, "三列"]]} /><//>
+    <${Field} label="Agent 卡片"><${Seg} k="agentCard" cur=${agentCardOf(t)} opts=${[["gesture", "新版"], ["buttons", "旧版"]]} /><//>
+    ${agentCardOf(t) === "gesture" ? html`<${Field} label="Agent 做完"><${Seg} k="agentDone" cur=${agentDoneOf(t)} opts=${[["slide", "滑动"], ["hold", "长按"]]} /><//>` : null}
     <${Field} label="头图"><${Toggle} k="hero" value=${t.hero} /><//>
     <${Field} label="头图样式"><select class="input" value=${heroById(t.heroStyle).id} onChange=${(e) => act.theme({ heroStyle: e.target.value })}>
       ${HEROES.map((x) => html`<option key=${x.id} value=${x.id}>${x.name}</option>`)}

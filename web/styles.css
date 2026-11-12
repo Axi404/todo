@@ -233,7 +233,50 @@
   .card.agent[data-leaving] { pointer-events: none; }
   /* A card for an item just handed off rises into its place */
   .card.agent.arrive { animation: card-arrive .6s cubic-bezier(.22, 1, .36, 1) backwards; }
-  @keyframes card-arrive { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+  @keyframes card-arrive { from { opacity: 0; translate: 0 14px; scale: .97; } }
+
+  /* Gesture agent cards (AgentBlock.js GestureCard). With a mouse the card tilts like a seesaw: the side under the pointer is
+     pressed down and the opposite side rises (--rx, --ry from useTilt, perspective --pp); the title row and the done control
+     float a little above the card (preserve-3d), and it eases back flat when the pointer leaves or while it is being done */
+  .card.agent.g { transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2, .8, .2, 1), box-shadow .55s cubic-bezier(.2, .8, .2, 1); touch-action: manipulation; }
+  .card.agent.g.tilting { transform: perspective(var(--pp, 900px)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform .14s ease-out, box-shadow .3s ease-out; box-shadow: 0 22px 34px -24px hsl(240 10% 4% / .4); }
+  .card.agent.g[data-still], .card.agent.g[data-leaving] { transform: none; box-shadow: none; transition-duration: .18s; }
+  .card.agent.g .ag-head, .card.agent.g .ag-foot { transform: translateZ(14px); }
+  .ag-head { display: flex; align-items: flex-start; gap: 10px; }
+  .ag-head h3 { flex: 1; min-width: 0; }
+  .ag-tools { flex: none; display: flex; gap: 6px; margin: -2px -6px 0 0; }
+  .rnd { width: 28px; height: 28px; padding: 0; border: 1px solid hsl(var(--border)); border-radius: 50%; background: hsl(var(--card)); color: hsl(var(--muted-foreground));
+    display: inline-grid; place-items: center; cursor: pointer; transition: color .15s, border-color .15s, background-color .15s; }
+  @media (hover: hover) { .rnd:hover { color: hsl(var(--foreground)); border-color: hsl(var(--foreground) / .4); } }
+  .rnd:active { background: hsl(var(--secondary)); }
+  .ag-foot { padding-top: 14px; }
+  .agent-grid:not(.cols-1) > .card.agent.g > .ag-foot { margin-top: auto; }
+  /* The ring a double-click leaves (ack), inside the card's shape */
+  .ag-acks { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+  .ag-acks i { position: absolute; width: 180px; height: 180px; border-radius: 50%; border: 1.5px solid hsl(var(--foreground) / .5); }
+  /* Done by sliding: a track with a knob; dragged across, the knob leaves a fill behind it and the label fades (--x, --p) */
+  .ag-done { position: relative; display: flex; align-items: center; justify-content: center; height: 40px; width: 100%; border: 1px solid hsl(var(--border));
+    border-radius: 999px; background: hsl(var(--secondary)); font-size: 13.5px; color: hsl(var(--muted-foreground)); overflow: hidden;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .ag-done .lbl { position: relative; display: inline-flex; align-items: center; gap: 6px; letter-spacing: .5px; pointer-events: none; }
+  .ag-done.slide .lbl { padding-left: 24px; opacity: calc(1 - var(--p, 0) * 1.7);
+    background: linear-gradient(100deg, hsl(var(--muted-foreground)) 40%, hsl(var(--foreground)) 50%, hsl(var(--muted-foreground)) 60%) 0 0 / 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: ag-shine 3.2s linear infinite; }
+  .ag-done.slide .fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--x, 0px) + 40px); border-radius: inherit; background: hsl(var(--foreground) / .1);
+    opacity: calc(var(--p, 0) * 4); } /* only once the knob moves */
+  .ag-done .knob { position: absolute; left: 3px; top: 3px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; cursor: grab; touch-action: none; translate: var(--x, 0px) 0; transition: translate .4s cubic-bezier(.2, .8, .2, 1); }
+  .ag-done .knob .si { width: 14px; height: 14px; }
+  .ag-done.dragging .knob, .ag-done.dragging .fill { transition: none; cursor: grabbing; }
+  .ag-done.slide .fill { transition: width .4s cubic-bezier(.2, .8, .2, 1); }
+  /* Done by holding: the fill grows from the left while pressed (HoldToDone animates its scaleX) */
+  .ag-done.hold { cursor: pointer; padding: 0; font: inherit; font-size: 13.5px; color: hsl(var(--foreground)); transition: scale .2s ease; }
+  .ag-done.hold .fill { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); }
+  .ag-done.hold { isolation: isolate; }
+  .ag-done.hold .lbl { z-index: 1; mix-blend-mode: difference; color: hsl(0 0% 100%); } /* readable on the fill and off it, light or dark */
+  .ag-done.hold.holding { scale: .985; }
+  @keyframes ag-shine { from { background-position: 100% 0; } to { background-position: 0 0; } }
   .stale { margin-left: 10px; padding: 1px 8px; border-radius: 6px; font-size: 12px; color: hsl(var(--warn)); background: hsl(var(--warn-bg)); }
   .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .btn { height: 34px; padding: 0 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--secondary)); border-radius: 8px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
@@ -662,6 +705,11 @@
 
     /* Agent cards: "checked", "done" and ⋯ (taking it back and editing are in that menu) */
     .card.agent h3 { font-size: 1.02em; line-height: 1.45; }
+    /* gesture cards: finger-sized round buttons and done control */
+    .rnd { width: 34px; height: 34px; }
+    .ag-tools { gap: 8px; }
+    .ag-done { height: 44px; }
+    .ag-done .knob { width: 36px; height: 36px; }
     .agent .where, .agent .note { font-size: .88em; }
     .agent .where { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .agent .when { font-size: 12px; }
@@ -746,7 +794,9 @@
   @keyframes mask-out { to { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
     .pop, .pop.sheet, .pop-mask, .pop > .opt, .pop > .ask, .pop > .pk, .pop > .rp, .card.agent.arrive,
-    .pill .ants rect, .pill .gear, .pill .gear .si, .pop .opt.s-agent .si { animation: none !important; }
+    .pill .ants rect, .pill .gear, .pill .gear .si, .pop .opt.s-agent .si, .ag-done.slide .lbl { animation: none !important; }
+    .card.agent.g, .card.agent.g.tilting { transform: none; transition: none; }
+    .ag-done .knob, .ag-done.slide .fill, .ag-done.hold { transition: none; }
     .pill.handoff::after { content: none; }
   }
   /* Touch screens (phones in portrait or landscape, tablets) and narrow screens: inputs are at least 16px. Below that, iPhone
