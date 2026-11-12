@@ -640,6 +640,38 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
     }
     await sleep(1200);
   }
+  // with a slow connection (350 ms each way, as from far away): the card moves at once, double-clicks while cards are moving are
+  // ignored (the card sliding under the pointer is not caught), and when the tall card of a row leaves it, that row and the
+  // page below shrink smoothly
+  {
+    await api("PATCH", "/api/theme", { seenFx: "ripple", agentMove: "lift" });
+    const tall = await gp.ev(`document.querySelector('#b-agent [data-agent-card]').dataset.agentCard`);
+    await api("PATCH", `/api/items/${tall}`, { agent: { note: "第一行\n第二行\n第三行\n第四行\n第五行" } });
+    await gp.reload();
+    await gp.send("Network.enable");
+    await gp.send("Network.emulateNetworkConditions", { offline: false, latency: 350, downloadThroughput: -1, uploadThroughput: -1 });
+    await gp.ev(`document.getElementById('b-agent').scrollIntoView({ block: "start" }), true`); await sleep(400);
+    const at = await gp.ev(`(() => { const r = document.querySelector('[data-agent-card="${tall}"] .where').getBoundingClientRect(); return { x: r.left + 30, y: r.top + r.height / 2 } })()`);
+    const order0 = await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].map((c) => c.dataset.agentCard)`);
+    // every frame: the block's height, where the next block starts, and each card's height (by card, as laid out: offsetHeight)
+    await gp.ev(`(() => { window.__s = []; const t0 = performance.now(); const f = () => { window.__s.push([document.querySelector('#b-agent .agent-wrap').getBoundingClientRect().height, document.getElementById('b-repeat').getBoundingClientRect().top, Object.fromEntries([...document.querySelectorAll('#b-agent [data-agent-card]')].map((c) => [c.dataset.agentCard, c.offsetHeight]))]); if (performance.now() - t0 < 1700) requestAnimationFrame(f); }; requestAnimationFrame(f); return true })()`);
+    await press(at.x, at.y, 1); await press(at.x, at.y, 2); await sleep(40);
+    check("slow connection: the card starts to float right away, without waiting for the server", await gp.ev(`document.querySelector('#b-agent .agent-grid').dataset.moving === "1" && document.querySelector('[data-agent-card="${tall}"]').getAnimations().some((a) => a.id === "move")`));
+    await sleep(560);
+    const under = await gp.ev(`document.elementFromPoint(${at.x}, ${at.y})?.closest('[data-agent-card]')?.dataset.agentCard ?? null`);
+    const seenUnder = under && (await doc()).items.find((i) => i.id === under).agent.lastSeen;
+    await press(at.x, at.y, 1); await press(at.x, at.y, 2);
+    await sleep(1500);
+    const sample = await gp.ev(`window.__s`), order1 = await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].map((c) => c.dataset.agentCard)`);
+    check("…a double-click while the cards are still moving is ignored: the card sliding under the pointer stays where it is",
+      under !== tall && (!under || (await doc()).items.find((i) => i.id === under).agent.lastSeen === seenUnder) && order1.at(-1) === tall && order1.length === order0.length, `under ${under}`);
+    const jump = (k) => Math.max(...sample.slice(1).map((x, i) => Math.abs(x[k] - sample[i][k])));
+    const cardJump = Math.max(...sample.slice(1).map((x, i) => Math.max(0, ...Object.entries(x[2]).map(([k, h]) => Math.abs(h - (sample[i][2][k] ?? h))))));
+    const changed = Object.keys(sample[0][2]).some((k) => Math.abs(sample[0][2][k] - sample.at(-1)[2][k]) > 20);
+    check("…the cards of the rows it left and joined grow or shrink smoothly, and so do the block and the page below (no frame jumps more than 15px)", changed && jump(0) < 15 && jump(1) < 15 && cardJump < 15,
+      `block ${sample[0][0].toFixed(0)}→${sample.at(-1)[0].toFixed(0)}, steps ${jump(0).toFixed(1)} / ${jump(1).toFixed(1)} / cards ${cardJump.toFixed(1)}, heights changed ${changed}`);
+    await gp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  }
   // settings: the two rows of options; clicking one selects it and plays it on the option
   await gp.click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(500);
   const chip = (label, name) => `[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith(${JSON.stringify(label)})).querySelectorAll('.chip')].find((c) => c.textContent === ${JSON.stringify(name)})`;
