@@ -541,22 +541,50 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   check("hover at the top right: the card tilts, the top right pressed down (rotateY > 0, rotateX > 0), at most 6°", tilt.on && tilt.ry > 2 && tilt.ry <= 6 && tilt.rx > 2 && tilt.rx <= 6 && tilt.t.startsWith("matrix3d"), JSON.stringify(tilt));
   await gp.mouse("mouseMoved", r.x + r.w * 0.05, r.y + r.h * 0.92); await sleep(300);
   check("…at the bottom left it tilts the other way", await gp.ev(`(() => { const c = ${C("一")}; return parseFloat(c.style.getPropertyValue('--ry')) < -2 && parseFloat(c.style.getPropertyValue('--rx')) < -2 })()`));
+  check("…as one flat plate: nothing inside it moves on its own", await gp.ev(`(() => { const c = ${C("一")}; return getComputedStyle(c).transformStyle === "flat" && [...c.querySelectorAll('*')].every((e) => getComputedStyle(e).transform === "none" || e.classList.contains('knob')) })()`));
   await gp.mouse("mouseMoved", 3, 3); await sleep(800);
   check("…and lies flat again once the pointer has left", await gp.ev(`(() => { const c = ${C("一")}; return !c.classList.contains('tilting') && getComputedStyle(c).transform === "none" })()`));
 
   // double-click: checked (lastSeen), a ring where it was clicked, no word selected; not on the done control
   const seen0 = (await item("一")).agent.lastSeen;
   r = await rect(`${C("一")}.querySelector('.where')`);
-  await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await sleep(60);
-  check("double-click on the card: a ring spreads from there, and no word is selected", await gp.ev(`!!${C("一")}.querySelector('.ag-acks i') && getSelection().toString() === ""`));
-  await sleep(500);
-  check("…the item is recorded as checked just now", (await item("一")).agent.lastSeen > seen0 && /记下了/.test(await gp.ev(`document.querySelector('.toast').textContent`)));
+  await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await sleep(30);
+  check("double-click on the card: the checked effect plays (a small ripple) and no word is selected", await gp.ev(`!!document.querySelector('.fx-canvas') && getSelection().toString() === ""`));
+  await gp.mouse("mouseMoved", 3, 3);
+  // the move's own animation (not the CSS transitions of the tilt easing off): wait for it to start, then read it
+  const moving = (id) => gp.ev(`(async () => {
+    const own = (el) => el.getAnimations().filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation));
+    for (let k = 0; k < 100 && !own(document.querySelector('[data-agent-card="${id}"]')).length; k++) await new Promise((r) => setTimeout(r, 10));
+    const c = document.querySelector('[data-agent-card="${id}"]'), a = own(c)[0]; if (!a) return null;
+    const others = [...document.querySelectorAll('[data-agent-card]')].filter((x) => x !== c && own(x).length).map((x) => own(x)[0].effect.getTiming());
+    return { kf: a.effect.getKeyframes().map((k) => ({ scale: k.scale, translate: k.translate, opacity: k.opacity, shadow: k.boxShadow, easing: k.easing })), t: a.effect.getTiming(), others: others.map((o) => ({ delay: o.delay, easing: o.easing })) } })()`);
+  const lift = await moving(gid["一"]);
+  check("…then it floats up where it is (a little bigger, a deep shadow), travels to the back still lifted and lands; the others make room once it has lifted",
+    !!lift && lift.kf.length === 4 && lift.kf[1].scale === "1.05" && ((a, b) => a[0] === b[0] && Math.abs(a[1] - 8 - b[1]) < 0.01)(lift.kf[0].translate.split(" ").map(parseFloat), lift.kf[1].translate.split(" ").map(parseFloat)) && /px/.test(lift.kf[1].shadow) && /^0px( 0px)?$/.test(lift.kf[3].translate)
+      && lift.others.length > 0 && lift.others.every((o) => o.delay === 250), JSON.stringify(lift).slice(0, 300));
+  await sleep(1200);
+  check("…the item is recorded as checked just now, and its card is the last one", (await item("一")).agent.lastSeen > seen0 && /记下了/.test(await gp.ev(`document.querySelector('.toast').textContent`))
+    && (await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].at(-1).dataset.agentCard`)) === gid["一"]);
+  r = await rect(`${C("一")}.querySelector('.where')`);
+  await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await gp.mouse("mouseMoved", 3, 3);
+  const still = await moving(gid["一"]);
+  check("checked again while it is the last one: it floats up and lands in place", !!still && still.kf[1].scale === "1.05" && still.kf.every((k) => k.translate.startsWith("0px")) && still.t.duration === 700, JSON.stringify(still).slice(0, 200));
+  await sleep(800);
   const seen1 = (await item("二")).agent.lastSeen;
   r = await rect(`${C("二")}.querySelector('.ag-done .lbl')`);
   await press(r.x + r.w / 2, r.y + r.h / 2, 1); await press(r.x + r.w / 2, r.y + r.h / 2, 2); await sleep(500);
   check("a double-click on the done control does not count", (await item("二")).agent.lastSeen === seen1);
 
-  // slide: let go halfway and it slides back; all the way and the item is done
+  // slide: the fill around the knob follows it exactly; let go halfway and it slides back; all the way and the item is done
+  {
+    const k = await rect(`${C("二")}.querySelector('.knob')`), t = await rect(`${C("二")}.querySelector('.ag-done')`);
+    await gp.mouse("mouseMoved", k.x + k.w / 2, k.y + k.h / 2); await gp.mouse("mousePressed", k.x + k.w / 2, k.y + k.h / 2);
+    for (let s2 = 1; s2 <= 8; s2++) { await gp.mouse("mouseMoved", k.x + k.w / 2 + (t.w * 0.4 * s2) / 8, k.y + k.h / 2); await sleep(12); }
+    const geo = await gp.ev(`(() => { const f = ${C("二")}.querySelector('.fill').getBoundingClientRect(), n = ${C("二")}.querySelector('.knob').getBoundingClientRect(), l = ${C("二")}.querySelector('.ag-done .lbl');
+      return { gap: +(f.right - n.right).toFixed(1), rim: +((f.height - n.height) / 2).toFixed(1), lag: getComputedStyle(${C("二")}.querySelector('.fill')).transitionDuration, label: +getComputedStyle(l).opacity } })()`);
+    check("while sliding, the fill ends 3px around the knob as the track does, follows it without lag, and the label has faded", Math.abs(geo.gap - 3) <= 1 && Math.abs(geo.rim - 3) <= 1 && geo.lag.split(",").every((d) => parseFloat(d) === 0) && geo.label === 0, JSON.stringify(geo));
+    await gp.mouse("mouseMoved", k.x + k.w / 2, k.y + k.h / 2); await gp.mouse("mouseReleased", k.x + k.w / 2, k.y + k.h / 2); await sleep(600);
+  }
   await drag(C("二"), 0.5); await sleep(600);
   check("slide halfway and let go: the knob slides back and nothing is saved", (await item("二")).status === "agent"
     && (await gp.ev(`(() => { const t = ${C("二")}.querySelector('.ag-done'); return t.style.getPropertyValue('--x') === "0px" && !${C("二")}.dataset.still })()`)));
@@ -590,6 +618,39 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   await gp.mouse("mousePressed", r.x + r.w / 2, r.y + r.h / 2); await sleep(1100); await gp.mouse("mouseReleased", r.x + r.w / 2, r.y + r.h / 2);
   check("hold for 1 s: the item is done", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["五"]}").status === "done")`, 4000));
 
+  // the other "checked" effects and moves (each time the first card is checked and goes to the back)
+  await gp.mouse("mouseMoved", 3, 3);
+  for (const [fx, move] of [["eye", "slide"], ["glow", "fade"], ["none", "spring"], ["ripple", "none"]]) {
+    await api("PATCH", "/api/theme", { seenFx: fx, agentMove: move }); await gp.reload();
+    const id = await gp.ev(`document.querySelector('#b-agent [data-agent-card]').dataset.agentCard`);
+    r = await rect(`document.querySelector('[data-agent-card="${id}"] .where')`);
+    await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await gp.mouse("mouseMoved", 3, 3); await sleep(40);
+    const fxOn = await gp.ev(`({ eye: !!document.querySelector('.fx-layer .seen-eye'), ripple: !!document.querySelector('.fx-canvas'), glow: document.querySelector('[data-agent-card="${id}"] .when').getAnimations().length > 0 })`);
+    check(`checked effect "${fx}"`, fx === "none" ? !fxOn.eye && !fxOn.ripple && !fxOn.glow : fxOn[fx], JSON.stringify(fxOn));
+    if (move === "none") {
+      await sleep(400);
+      check('move "none": the card goes to the back without any animation', (await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].at(-1).dataset.agentCard`)) === id
+        && (await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].every((c) => !c.getAnimations().filter((a) => !(a instanceof CSSTransition)).length)`)));
+    } else {
+      const m = await moving(id);
+      const ok = !!m && (move === "slide" ? m.kf.length === 2 && m.t.duration === 460 && m.others.every((o) => o.delay === 0)
+        : move === "fade" ? m.kf.some((k) => k.opacity === "0") && m.others.every((o) => o.delay === 230)
+        : m.t.easing.includes("1.45") && m.others.every((o) => o.easing.includes("1.45")));
+      check(`move "${move}"`, ok, JSON.stringify(m).slice(0, 240));
+    }
+    await sleep(1200);
+  }
+  // settings: the two rows of options; clicking one selects it and plays it on the option
+  await gp.click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(500);
+  const chip = (label, name) => `[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith(${JSON.stringify(label)})).querySelectorAll('.chip')].find((c) => c.textContent === ${JSON.stringify(name)})`;
+  await gp.click(chip("看过了时", "眨眼")); await sleep(60);
+  check('settings: "看过了时" has 不要, 涟漪, 眨眼, 高亮, 随机; clicking 眨眼 selects it and plays it there', (await gp.ev(`!!document.querySelector('.fx-layer .seen-eye')`)) && (await doc()).theme.seenFx === "eye"
+    && (await gp.ev(`[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith("看过了时")).querySelectorAll('.chip')].map((c) => c.textContent).join()`)) === "不要,涟漪,眨眼,高亮,随机");
+  await gp.click(chip("看过以后", "淡入淡出")); await sleep(60);
+  check('settings: "看过以后" has 飘起来, 滑过去, 淡入淡出, 弹一下, 不要; clicking one selects it and plays it on the option', (await doc()).theme.agentMove === "fade"
+    && (await gp.ev(`${chip("看过以后", "淡入淡出")}.getAnimations().length > 0`)));
+  await gp.esc(); await sleep(400);
+
   // prefers-reduced-motion: no tilt
   await gp.media([{ name: "prefers-reduced-motion", value: "reduce" }]); await gp.reload();
   r = await rect(C("六"));
@@ -603,10 +664,10 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   const seen6 = (await item("六")).agent.lastSeen;
   const pr = await ph.ev(`(() => { const e = ${C("六")}.querySelector('.when'); e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + 30, y: r.top + r.height / 2 } })()`);
   await ph.send("Input.synthesizeTapGesture", { x: pr.x, y: pr.y, duration: 30, tapCount: 1, gestureSourceType: "touch" }); await sleep(90);
-  await ph.send("Input.synthesizeTapGesture", { x: pr.x, y: pr.y, duration: 30, tapCount: 1, gestureSourceType: "touch" }); await sleep(600);
+  await ph.send("Input.synthesizeTapGesture", { x: pr.x, y: pr.y, duration: 30, tapCount: 1, gestureSourceType: "touch" }); await sleep(1400); // it floats to the back
   check("phone: a double tap records it as checked", (await item("六")).agent.lastSeen > seen6);
   check("phone: the round buttons are finger-sized (34px)", await ph.ev(`[...${C("六")}.querySelectorAll('.rnd')].every((b) => b.offsetWidth === 34)`));
-  const kn = await ph.ev(`(() => { const k = ${C("六")}.querySelector('.knob').getBoundingClientRect(), t = ${C("六")}.querySelector('.ag-done').getBoundingClientRect(); return { x: k.left + k.width / 2, y: k.top + k.height / 2, d: t.width - k.width - 6 } })()`);
+  const kn = await ph.ev(`(() => { ${C("六")}.scrollIntoView({ block: "center" }); const k = ${C("六")}.querySelector('.knob').getBoundingClientRect(), t = ${C("六")}.querySelector('.ag-done').getBoundingClientRect(); return { x: k.left + k.width / 2, y: k.top + k.height / 2, d: t.width - k.width - 6 } })()`);
   const touch = (type, x) => ph.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y: kn.y }] });
   await touch("touchStart", kn.x);
   for (let s2 = 1; s2 <= 12; s2++) { await touch("touchMove", kn.x + (kn.d * s2) / 12); await sleep(16); }
