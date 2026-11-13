@@ -700,18 +700,23 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
     check("…a double-click while the cards are still moving is ignored: the card sliding under the pointer stays where it is",
       under !== tall && (!under || (await doc()).items.find((i) => i.id === under).agent.lastSeen === seenUnder) && order1.at(-1) === tall && order1.length === order0.length, `under ${under}`);
     const jump = (k) => Math.max(...sample.slice(1).map((x, i) => Math.abs(x[k] - sample[i][k])));
-    const cardJump = Math.max(...sample.slice(1).map((x, i) => Math.max(0, ...Object.entries(x[2]).map(([k, h]) => Math.abs(h - (sample[i][2][k] ?? h))))));
-    const changed = Object.keys(sample[0][2]).some((k) => Math.abs(sample[0][2][k] - sample.at(-1)[2][k]) > 20);
-    check("…the cards of the rows it left and joined grow or shrink smoothly, and so do the block and the page below (no frame jumps more than 15px)", changed && jump(0) < 15 && jump(1) < 15 && cardJump < 15,
-      `block ${sample[0][0].toFixed(0)}→${sample.at(-1)[0].toFixed(0)}, steps ${jump(0).toFixed(1)} / ${jump(1).toFixed(1)} / cards ${cardJump.toFixed(1)}, heights changed ${changed}`);
+    // a card's height may change fast in the middle of a long change (a tall card leaving a row), but never all at once: no frame
+    // takes more than a fifth of its whole change, or 15px when the change is small
+    const steps = (k) => sample.slice(1).map((x, i) => Math.abs((x[2][k] ?? 0) - (sample[i][2][k] ?? x[2][k] ?? 0)));
+    const cards = Object.keys(sample[0][2]).map((k) => ({ k, step: Math.max(0, ...steps(k)), total: Math.abs(sample[0][2][k] - (sample.at(-1)[2][k] ?? sample[0][2][k])) }));
+    const cardJump = Math.max(...cards.map((c) => c.step)), smooth = cards.every((c) => c.step < Math.max(15, c.total / 5));
+    const changed = cards.some((c) => c.total > 20);
+    check("…the cards of the rows it left and joined grow or shrink smoothly, and so do the block and the page below (no frame jumps more than 15px, nor a fifth of a card's change)", changed && jump(0) < 15 && jump(1) < 15 && smooth,
+      `block ${sample[0][0].toFixed(0)}→${sample.at(-1)[0].toFixed(0)}, steps ${jump(0).toFixed(1)} / ${jump(1).toFixed(1)} / cards ${cardJump.toFixed(1)}, heights changed ${changed}`
+      + (!smooth ? ` — ${JSON.stringify(Object.keys(sample[0][2]).map((k) => [k === tall ? "tall" : k.slice(-4), sample.map((x) => Math.round(x[2][k] ?? -1)).filter((v, i, a) => i === 0 || v !== a[i - 1])]))}` : ""));
     await gp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   }
   // settings: the two rows of options; clicking one selects it and plays it on the option
   await gp.click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(500);
   const chip = (label, name) => `[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith(${JSON.stringify(label)})).querySelectorAll('.chip')].find((c) => c.textContent === ${JSON.stringify(name)})`;
-  await gp.click(chip("看过了时", "眨眼")); await sleep(60);
-  check('settings: "看过了时" has 不要, 涟漪, 眨眼, 高亮, 随机; clicking 眨眼 selects it and plays it there', (await gp.ev(`!!document.querySelector('.fx-layer .seen-eye')`)) && (await doc()).theme.seenFx === "eye"
-    && (await gp.ev(`[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith("看过了时")).querySelectorAll('.chip')].map((c) => c.textContent).join()`)) === "不要,涟漪,眨眼,高亮,随机");
+  await gp.click(chip("看过了时", "已读")); await sleep(60);
+  check('settings: "看过了时" has 不要, 涟漪, 已读, 批阅, 扫一眼, 随机; clicking 已读 selects it and plays it on the row of options', (await gp.ev(`!!document.querySelector('.drawer .chips .seen-read')`)) && (await doc()).theme.seenFx === "read"
+    && (await gp.ev(`[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith("看过了时")).querySelectorAll('.chip')].map((c) => c.textContent).join()`)) === "不要,涟漪,已读,批阅,扫一眼,随机");
   await gp.click(chip("看过以后", "淡入淡出")); await sleep(60);
   check('settings: "看过以后" has 飘起来, 滑过去, 淡入淡出, 弹一下, 不要; clicking one selects it and plays it on the option', (await doc()).theme.agentMove === "fade"
     && (await gp.ev(`${chip("看过以后", "淡入淡出")}.getAnimations().length > 0`)));
