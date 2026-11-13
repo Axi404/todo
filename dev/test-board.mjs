@@ -385,7 +385,7 @@ await api("PATCH", "/api/theme", { closedMode: "recent" });
 {
   const sec = await api("POST", "/api/sections", { title: "测试效果" });
   const gfx = sec.groups.find((x) => x.section === sec.sections.find((y) => y.title === "测试效果").id).id;
-  const agentFx = ["confetti", "shatter", "dust", "stamp", "fireworks", "none", "reduce"];
+  const agentFx = ["confetti", "shatter", "dust", "stamp", "tear", "fireworks", "none", "reduce"];
   for (const id of agentFx) await api("POST", "/api/items", { group: gfx, title: `效果 ${id}`, status: "agent", agent: { where: "测试" } });
   await api("POST", "/api/items", { group: gfx, title: "效果打卡", repeat: "daily" });
   const ids = Object.fromEntries((await doc()).items.filter((i) => i.title.startsWith("效果 ")).map((i) => [i.title.slice(3), i.id]));
@@ -404,15 +404,17 @@ await api("PATCH", "/api/theme", { closedMode: "recent" });
       `played ${shown}, done ${finished}, cleaned up ${clean}`);
     if (id === "reduce") await send("Emulation.setEmulatedMedia", { features: [] });
   }
-  // Saving fails (the item is deleted behind the page's back first, so the page does not know yet): once the shards have flown,
-  // the card comes back and can still be clicked
-  await api("POST", "/api/items", { group: gfx, title: "效果 存不上", status: "agent", agent: { where: "测试" } });
-  await api("PATCH", "/api/theme", { agentFx: "shatter" }); await reloadPage();
-  const lost = (await doc()).items.find((i) => i.title === "效果 存不上").id;
-  await api("DELETE", `/api/items/${lost}`);
-  await click(`[...document.querySelectorAll('[data-agent-card="${lost}"] .btn')].find((b) => b.textContent.includes("做完了"))`);
-  const back = await waitFor(`(() => { const c = document.querySelector('[data-agent-card="${lost}"]'); return !!c && !c.dataset.leaving && getComputedStyle(c).visibility === "visible" })()`, 4000);
-  check("effect: the card comes back when saving fails", back && (await waitFor(fxGone, 5000)));
+  // Saving fails (the item is deleted behind the page's back first, so the page does not know yet): once the effect has
+  // played, the card comes back and can still be clicked
+  for (const fx of ["shatter", "tear"]) {
+    await api("POST", "/api/items", { group: gfx, title: `效果 存不上 ${fx}`, status: "agent", agent: { where: "测试" } });
+    await api("PATCH", "/api/theme", { agentFx: fx }); await reloadPage();
+    const lost = (await doc()).items.find((i) => i.title === `效果 存不上 ${fx}`).id;
+    await api("DELETE", `/api/items/${lost}`);
+    await click(`[...document.querySelectorAll('[data-agent-card="${lost}"] .btn')].find((b) => b.textContent.includes("做完了"))`);
+    const back = await waitFor(`(() => { const c = document.querySelector('[data-agent-card="${lost}"]'); return !!c && !c.dataset.leaving && getComputedStyle(c).visibility === "visible" })()`, 5000);
+    check(`effect "${fx}": the card comes back when saving fails`, back && (await waitFor(fxGone, 5000)));
+  }
   const rep = (await doc()).items.find((i) => i.title === "效果打卡").id;
   const dotSel = `(() => { const row = [...document.querySelectorAll('#b-repeat .hab .nm')].find((n) => n.textContent.includes("效果打卡")); let e = row.nextElementSibling; while (e && !e.classList.contains('today')) e = e.nextElementSibling; return e.querySelector('.dot') })()`;
   for (const id of ["confetti", "pop", "fireworks", "ripple", "none"]) {
@@ -425,8 +427,8 @@ await api("PATCH", "/api/theme", { closedMode: "recent" });
   }
   await click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(600);
   const chips = (label) => `[...[...document.querySelectorAll('.drawer .field')].find((f) => f.firstElementChild.textContent === ${JSON.stringify(label)}).querySelectorAll('.chip')]`;
-  check('settings, "效果": two rows, 7 options for "Agent 做完时" and 6 for "打卡时", with "不要" first and "随机" last',
-    (await ev(`${chips("Agent 做完时")}.map((c) => c.textContent).join()`)) === "不要,彩带,碎掉,化成灰,盖章,烟花,随机" && (await ev(`${chips("打卡时")}.map((c) => c.textContent).join()`)) === "不要,彩带,火花,烟花,涟漪,随机");
+  check('settings, "效果": two rows, 8 options for "Agent 做完时" and 6 for "打卡时", with "不要" first and "随机" last',
+    (await ev(`${chips("Agent 做完时")}.map((c) => c.textContent).join()`)) === "不要,彩带,碎掉,化成灰,盖章,撕开,烟花,随机" && (await ev(`${chips("打卡时")}.map((c) => c.textContent).join()`)) === "不要,彩带,火花,烟花,涟漪,随机");
   await click(`${chips("Agent 做完时")}.find((c) => c.textContent === "盖章")`); await sleep(300);
   check('clicking "盖章" in the settings: it is selected, and stamps right there on that row', (await doc()).theme.agentFx === "stamp" && (await ev(`!!document.querySelector('.fx-stamp')`)));
   check("after the try-out the row of options comes back and the effect is cleaned up", (await waitFor(`${fxGone} && [...document.querySelectorAll('.drawer .chips')].every((r) => getComputedStyle(r).visibility === "visible")`, 5000)));
