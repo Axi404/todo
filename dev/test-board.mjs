@@ -594,6 +594,38 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   await gp.ev(`${C("三")}.querySelector('.knob').focus(), true`); await gp.key("Enter", "Enter", 13);
   check("Enter on the knob does the same", await waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid["三"]}").status === "done")`, 4000));
 
+  // The release can go missing (a refresh moved the card in the page and the knob lost its pointer capture; a trackpad's
+  // drag lock holds it back): the knob must never stay stuck at the end
+  {
+    for (const n of ["七", "八", "九"]) await api("POST", "/api/items", { group: "g-fx", title: `手势${n}`, status: "agent", agent: { where: "测试机" } });
+    Object.assign(gid, Object.fromEntries((await doc()).items.filter((i) => /^手势[七八九]$/.test(i.title)).map((i) => [i.title.slice(2), i.id])));
+    await gp.reload(); await sleep(400);
+    const at = async (k) => { const n = await rect(`${C(k)}.querySelector('.knob')`), t = await rect(`${C(k)}.querySelector('.ag-done')`); return { x: n.x + n.w / 2, y: n.y + n.h / 2, d: t.w - n.w - 6 }; };
+    const moveTo = (x, y, buttons = 1) => gp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: buttons ? "left" : "none", buttons });
+    const letGo = (x, y) => gp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+    const isDone = (k) => waitFor(`fetch('/api/todo').then((r) => r.json()).then((d) => d.items.find((i) => i.id === "${gid[k]}").status === "done")`, 4000);
+    let q = await at("七");
+    await gp.mouse("mouseMoved", q.x, q.y); await gp.mouse("mousePressed", q.x, q.y);
+    await moveTo(q.x + q.d * 0.5, q.y + 30); await sleep(12); await moveTo(q.x + q.d + 160, q.y + 90); await sleep(50);
+    check("slide: reaching the far end is enough, without letting go (two quick jumps, out past the end and off the slider)", await isDone("七"));
+    await letGo(q.x + q.d + 160, q.y + 90); await sleep(300);
+    q = await at("八");
+    await gp.mouse("mouseMoved", q.x, q.y); await gp.mouse("mousePressed", q.x, q.y);
+    await moveTo(q.x + q.d * 0.5, q.y); await sleep(30);
+    await moveTo(q.x + q.d * 0.5 + 4, q.y + 4, 0); await sleep(600);
+    check("slide: a move with the button already up ends the slide (halfway: it slides back, nothing saved)", (await item("八")).status === "agent"
+      && (await gp.ev(`(() => { const t = ${C("八")}.querySelector('.ag-done'); return t.style.getPropertyValue('--x') === "0px" && !t.classList.contains('dragging') && !${C("八")}.dataset.still })()`)));
+    await letGo(q.x + q.d * 0.5 + 4, q.y + 4); await sleep(200);
+    q = await at("九");
+    await gp.mouse("mouseMoved", q.x, q.y); await gp.mouse("mousePressed", q.x, q.y);
+    await moveTo(q.x + q.d * 0.4, q.y); await sleep(30);
+    const lost = await gp.ev(`new Promise((r) => { const c = ${C("九")}; document.addEventListener('lostpointercapture', () => r(true), { once: true, capture: true }); c.parentElement.prepend(c); setTimeout(() => r(false), 300); })`);
+    await moveTo(q.x + q.d * 0.7, q.y); await sleep(12); await moveTo(q.x + q.d + 40, q.y); await sleep(50);
+    check("slide: the card moved in the page mid-slide and its knob lost the pointer capture; the slide still carries on to done", lost && (await isDone("九")), `capture lost ${lost}`);
+    await letGo(q.x + q.d + 40, q.y); await sleep(300);
+    await gp.reload(); await sleep(300);
+  }
+
   // the round buttons
   await gp.click(`${C("四")}.querySelector('.t-locate')`);
   // the page scrolls there smoothly: wait until it has stopped
