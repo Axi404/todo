@@ -239,8 +239,13 @@ function useDoubleTap(onDouble) {
   };
 }
 
-// Slide to mark it done: drag the knob to the far end of the track (most of the way is enough); let go earlier and it slides
-// back. Enter, Space or → on the knob does the same, for the keyboard
+// Slide to mark it done: drag the knob to the far end of the track. Reaching the end is enough, it does not wait for the
+// release; let go before that and it is done if it got most of the way, otherwise it slides back. Enter, Space or → on the
+// knob does the same, for the keyboard.
+// The release can go missing: a refresh that re-sorts the cards moves this one in the page and the knob loses its pointer
+// capture, after which the release goes to whatever is under the pointer; a trackpad with drag lock holds it back until the
+// next tap. So the drag listens on the window rather than on the knob, and it also ends when a move comes with the button
+// already up or the window loses focus; the knob never stays stuck at the end
 function SlideToDone({ label, onDone }) {
   const ref = useRef(null);
   const set = (x, p) => { ref.current.style.setProperty("--x", `${x}px`); ref.current.style.setProperty("--p", p.toFixed(3)); };
@@ -248,20 +253,30 @@ function SlideToDone({ label, onDone }) {
   const finishAt = (max, origin) => { set(max, 1); ref.current.classList.add("done"); onDone(origin).then(reset); };
   const onPointerDown = (e) => {
     if (e.button !== 0) return;
-    const track = ref.current, knob = e.currentTarget, card = track.closest(".card");
+    const track = ref.current, knob = e.currentTarget, card = track.closest(".card"), id = e.pointerId;
     const max = track.clientWidth - knob.offsetWidth - 2 * knob.offsetLeft, x0 = e.clientX;
-    let x = 0;
-    knob.setPointerCapture(e.pointerId);
+    let x = 0, over = false;
+    try { knob.setPointerCapture(id); } catch {}
     track.classList.add("dragging");
     card.dataset.still = "1";
-    const move = (ev) => { x = clamp(ev.clientX - x0, 0, max); set(x, x / max); };
-    const up = () => {
-      knob.removeEventListener("pointermove", move); knob.removeEventListener("pointerup", up); knob.removeEventListener("pointercancel", up);
-      track.classList.remove("dragging");
-      if (x >= max * 0.86) finishAt(max, knob);
+    const end = (done) => {
+      if (over) return;
+      over = true;
+      removeEventListener("pointermove", move, true); removeEventListener("pointerup", up, true); removeEventListener("pointercancel", cancel, true); removeEventListener("blur", up);
+      ref.current?.classList.remove("dragging");
+      if (done) finishAt(max, knob);
       else reset();
     };
-    knob.addEventListener("pointermove", move); knob.addEventListener("pointerup", up); knob.addEventListener("pointercancel", up);
+    const move = (ev) => {
+      if (ev.pointerId !== id) return;
+      if (!(ev.buttons & 1)) return end(x >= max * 0.86); // the button is up but the release never came: end it here
+      x = clamp(ev.clientX - x0, 0, max);
+      set(x, x / max);
+      if (x >= max - 0.5) end(true);
+    };
+    const up = (ev) => { if (ev.type === "blur" || ev.pointerId === id) end(x >= max * 0.86); };
+    const cancel = (ev) => { if (ev.pointerId === id) end(false); };
+    addEventListener("pointermove", move, true); addEventListener("pointerup", up, true); addEventListener("pointercancel", cancel, true); addEventListener("blur", up);
   };
   const onKeyDown = (e) => {
     if (!["Enter", " ", "ArrowRight"].includes(e.key) || e.repeat) return;
