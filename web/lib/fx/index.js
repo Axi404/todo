@@ -13,13 +13,14 @@ import * as confetti from "./confetti.js";
 import * as shatter from "./shatter.js";
 import * as dust from "./dust.js";
 import * as stamp from "./stamp.js";
+import * as tear from "./tear.js";
 import * as fireworks from "./fireworks.js";
 import * as pop from "./pop.js";
 import * as ripple from "./ripple.js";
 
-const BY_ID = Object.fromEntries([confetti, shatter, dust, stamp, fireworks, pop, ripple].map((m) => [m.meta.id, m]));
+const BY_ID = Object.fromEntries([confetti, shatter, dust, stamp, tear, fireworks, pop, ripple].map((m) => [m.meta.id, m]));
 const LISTS = {
-  agent: ["confetti", "shatter", "dust", "stamp", "fireworks"],
+  agent: ["confetti", "shatter", "dust", "stamp", "tear", "fireworks"],
   check: ["confetti", "pop", "fireworks", "ripple"],
 };
 const KEYS = { agent: "agentFx", check: "checkFx" };

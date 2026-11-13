@@ -660,6 +660,26 @@
   .fx-edge { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; transition: opacity .12s; }
   .fx-crack { position: absolute; overflow: visible; fill: none; stroke-width: 1; stroke-linejoin: round; }
   .fx-stamp { position: absolute; pointer-events: none; }
+  /* Tear (fx/tear.js): the card that comes out of the pack. Its back: hatched, a dashed frame and the agent gear; its face:
+     dark, with a check, "done", the date and a small red mark; a sheen runs across the face once it has turned over. One
+     soft shadow each (a second offset shadow reads as a ghost of the card) */
+  .fx-tear-out { position: absolute; pointer-events: none; }
+  .fx-tear-out > * { position: absolute; }
+  .fx-tear-out .pull { transform-origin: 50% 50%; border-radius: 11px; }
+  .fx-tear-out .pull > div { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .fx-tear-out .pull > div::before { content: ""; position: absolute; inset: 7px; border: 1px dashed; border-radius: 6px; }
+  .fx-tear-out .back { background: hsl(var(--card)) repeating-linear-gradient(135deg, hsl(var(--foreground) / .055) 0 1px, transparent 1px 7px);
+    border: 1px solid hsl(var(--border)); color: hsl(var(--foreground) / .5); box-shadow: 0 10px 22px -14px hsl(240 10% 4% / .4); }
+  .fx-tear-out .back::before { border-color: hsl(var(--foreground) / .24); }
+  .fx-tear-out .face { background: hsl(var(--foreground)); color: hsl(var(--background)); transform: rotateY(180deg); gap: 6px; box-shadow: 0 16px 30px -16px hsl(240 10% 4% / .5); }
+  .fx-tear-out .face::before { border-color: hsl(var(--background) / .3); }
+  .fx-tear-out .face b { font: 700 15px var(--font), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; letter-spacing: 3px; margin: 4px 0 0 3px; }
+  .fx-tear-out .face i { font: 9.5px ui-monospace, Menlo, monospace; font-style: normal; letter-spacing: .5px; opacity: .6; }
+  .fx-tear-out .face .mark { position: absolute; top: 14px; right: 14px; }
+  .fx-tear-out .face .sheen { position: absolute; top: -20%; bottom: -20%; left: 0; width: 38%; transform: translateX(-160%) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, hsl(var(--background) / .26), transparent); }
+  .fx-tear-glint { position: absolute; overflow: visible; }
+  .fx-tear-shade { position: absolute; height: 18px; background: linear-gradient(hsl(var(--foreground) / .16), transparent); pointer-events: none; }
   .fx-stamp text { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", var(--font), sans-serif; }
   /* The list in settings is laid out in three columns (name, use count, delete), so the inputs on every row are equally wide */
   .placelist { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 8px; align-items: center; }
