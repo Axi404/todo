@@ -83,7 +83,8 @@ function Chips({ k, cur, opts, play }) {
   const choose = (id, e) => { if (id !== cur) act.theme({ [k]: id }); play(id, e.currentTarget); };
   return html`<span class="chips">${opts.map(([id, name]) => html`<button key=${id} class=${`chip ${cur === id ? "on" : ""}`} onClick=${(e) => choose(id, e)}>${name}</button>`)}</span>`;
 }
-const seenPreview = (id, chip) => { const r = chip.getBoundingClientRect(); playSeen(null, chip, r.left + r.width / 2, r.top + r.height / 2, id); };
+// the checked effect plays on the row of options, from the option clicked
+const seenPreview = (id, chip) => { const r = chip.getBoundingClientRect(); playSeen(null, chip.parentElement, r.left + r.width / 2, r.top + r.height / 2, id); };
 const movePreview = (id, chip) => { if (id !== "none") chip.animate(...moveAnimation(id, -28, 0).self); };
 
 // Accent color: a few presets, or type any color
