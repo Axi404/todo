@@ -547,11 +547,11 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   await gp.mouse("mouseMoved", 3, 3); await sleep(800);
   check("…and lies flat again once the pointer has left", await gp.ev(`(() => { const c = ${C("一")}; return !c.classList.contains('tilting') && getComputedStyle(c).transform === "none" })()`));
 
-  // double-click: checked (lastSeen), a ring where it was clicked, no word selected; not on the done control
+  // double-click: checked (lastSeen), a ripple across the card from where it was clicked, no word selected; not on the done control
   const seen0 = (await item("一")).agent.lastSeen;
   r = await rect(`${C("一")}.querySelector('.where')`);
   await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await sleep(30);
-  check("double-click on the card: the checked effect plays (a small ripple) and no word is selected", await gp.ev(`!!document.querySelector('.fx-canvas') && getSelection().toString() === ""`));
+  check("double-click on the card: the checked effect plays in the card (a ripple) and no word is selected", await gp.ev(`!!${C("一")}.querySelector('.seen-fx canvas') && getSelection().toString() === ""`));
   await gp.mouse("mouseMoved", 3, 3);
   // the move's own animation (not the CSS transitions of the tilt easing off): wait for it to start, then read it
   const moving = (id) => gp.ev(`(async () => {
@@ -654,13 +654,14 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
 
   // the other "checked" effects and moves (each time the first card is checked and goes to the back)
   await gp.mouse("mouseMoved", 3, 3);
-  for (const [fx, move] of [["eye", "slide"], ["glow", "fade"], ["none", "spring"], ["ripple", "none"]]) {
+  const seenOn = (id) => gp.ev(`(() => { const c = document.querySelector('[data-agent-card="${id}"]'); return { ripple: !!c.querySelector('.seen-fx canvas'), read: !!c.querySelector('.seen-read'), seal: !!c.querySelector('.seen-seal'), scan: !!c.querySelector('.seen-scan') } })()`);
+  for (const [fx, move] of [["read", "slide"], ["scan", "fade"], ["none", "spring"], ["ripple", "none"]]) {
     await api("PATCH", "/api/theme", { seenFx: fx, agentMove: move }); await gp.reload();
     const id = await gp.ev(`document.querySelector('#b-agent [data-agent-card]').dataset.agentCard`);
     r = await rect(`document.querySelector('[data-agent-card="${id}"] .where')`);
     await press(r.x + 20, r.y + r.h / 2, 1); await press(r.x + 20, r.y + r.h / 2, 2); await gp.mouse("mouseMoved", 3, 3); await sleep(40);
-    const fxOn = await gp.ev(`({ eye: !!document.querySelector('.fx-layer .seen-eye'), ripple: !!document.querySelector('.fx-canvas'), glow: document.querySelector('[data-agent-card="${id}"] .when').getAnimations().length > 0 })`);
-    check(`checked effect "${fx}"`, fx === "none" ? !fxOn.eye && !fxOn.ripple && !fxOn.glow : fxOn[fx], JSON.stringify(fxOn));
+    const fxOn = await seenOn(id);
+    check(`checked effect "${fx}": plays in the card`, fx === "none" ? Object.values(fxOn).every((v) => !v) : fxOn[fx] && Object.values(fxOn).filter(Boolean).length === 1, JSON.stringify(fxOn));
     if (move === "none") {
       await sleep(400);
       check('move "none": the card goes to the back without any animation', (await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].at(-1).dataset.agentCard`)) === id
@@ -673,6 +674,32 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
       check(`move "${move}"`, ok, JSON.stringify(m).slice(0, 240));
     }
     await sleep(1200);
+  }
+  check("checked effects: each is cleaned up once it has played (nothing left in the cards)", await gp.ev(`!document.querySelector('.seen-fx')`));
+  // seal; scan rewrites the "last checked" line as it passes (the old text is over the new one until the line gets there);
+  // the older eye and glow play read and scan
+  {
+    const last = async () => gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].at(-1).dataset.agentCard`);
+    const dbl = async (id) => { const q = await rect(`document.querySelector('[data-agent-card="${id}"] .where')`); await press(q.x + 20, q.y + q.h / 2, 1); await press(q.x + 20, q.y + q.h / 2, 2); await gp.mouse("mouseMoved", 3, 3); };
+    await api("PATCH", "/api/theme", { seenFx: "seal", agentMove: "none" }); await gp.reload();
+    let id = await last(); await dbl(id); await sleep(60);
+    check('checked effect "seal": a seal is pressed on in the card', (await seenOn(id)).seal);
+    await sleep(1200);
+    await api("PATCH", "/api/theme", { seenFx: "scan" }); await gp.reload();
+    id = await gp.ev(`[...document.querySelectorAll('#b-agent [data-agent-card]')].find((c) => !/刚刚/.test(c.querySelector('.when').textContent))?.dataset.agentCard`);
+    const before = await gp.ev(`document.querySelector('[data-agent-card="${id}"] .when').textContent`);
+    await dbl(id); await sleep(40);
+    const mid = await gp.ev(`(() => { const c = document.querySelector('[data-agent-card="${id}"]'), o = c.querySelector('.seen-old'); return { old: o?.textContent, now: c.querySelector('.when:not(.seen-old)').textContent } })()`);
+    await sleep(900);
+    const after = await gp.ev(`(() => { const c = document.querySelector('[data-agent-card="${id}"]'); return { old: !!c.querySelector('.seen-old'), now: c.querySelector('.when').textContent } })()`);
+    check('checked effect "scan": the old "last checked" line is over the new one, and is gone once the line has passed', !!id && !/刚刚/.test(before) && mid.old === before && /刚刚/.test(mid.now) && !after.old && /刚刚/.test(after.now), JSON.stringify({ before, mid, after }));
+    for (const [old, now] of [["eye", "read"], ["glow", "scan"]]) {
+      await api("PATCH", "/api/theme", { seenFx: old }); await gp.reload();
+      id = await last(); await dbl(id); await sleep(60);
+      check(`checked effect: the older "${old}" plays "${now}"`, (await seenOn(id))[now]);
+      await sleep(1200);
+    }
+    await api("PATCH", "/api/theme", { agentMove: "lift" });
   }
   // with a slow connection (350 ms each way, as from far away): the card moves at once, double-clicks while cards are moving are
   // ignored (the card sliding under the pointer is not caught), and when the tall card of a row leaves it, that row and the
@@ -715,8 +742,8 @@ await send("Emulation.setTouchEmulationEnabled", { enabled: false }); await send
   await gp.click(`[...document.querySelectorAll('header .tbtn')].find((b) => b.textContent === "设置")`); await sleep(500);
   const chip = (label, name) => `[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith(${JSON.stringify(label)})).querySelectorAll('.chip')].find((c) => c.textContent === ${JSON.stringify(name)})`;
   await gp.click(chip("看过了时", "已读")); await sleep(60);
-  check('settings: "看过了时" has 不要, 涟漪, 已读, 批阅, 扫一眼, 随机; clicking 已读 selects it and plays it on the row of options', (await gp.ev(`!!document.querySelector('.drawer .chips .seen-read')`)) && (await doc()).theme.seenFx === "read"
-    && (await gp.ev(`[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith("看过了时")).querySelectorAll('.chip')].map((c) => c.textContent).join()`)) === "不要,涟漪,已读,批阅,扫一眼,随机");
+  check('settings: "看过了时" has 不要, 涟漪, 已读, 批阅, 扫描, 随机; clicking 已读 selects it and plays it on the row of options', (await gp.ev(`!!document.querySelector('.drawer .chips .seen-read')`)) && (await doc()).theme.seenFx === "read"
+    && (await gp.ev(`[...[...document.querySelectorAll('.drawer .field')].find((f) => f.textContent.startsWith("看过了时")).querySelectorAll('.chip')].map((c) => c.textContent).join()`)) === "不要,涟漪,已读,批阅,扫描,随机");
   await gp.click(chip("看过以后", "淡入淡出")); await sleep(60);
   check('settings: "看过以后" has 飘起来, 滑过去, 淡入淡出, 弹一下, 不要; clicking one selects it and plays it on the option', (await doc()).theme.agentMove === "fade"
     && (await gp.ev(`${chip("看过以后", "淡入淡出")}.getAnimations().length > 0`)));

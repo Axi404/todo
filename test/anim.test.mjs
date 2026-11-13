@@ -5,6 +5,7 @@ import { dominoes, corners, overlap } from "../web/lib/domino.js";
 import { createSnake } from "../web/lib/snake.js";
 import { cut, area } from "../web/lib/fx/shatter.js";
 import { fxOf, fxOptions } from "../web/lib/fx/index.js";
+import { seenFxOf, seenFxOptions } from "../web/lib/fx/seen.js";
 
 const run = (bars, wall, dt = 1 / 60) => {
   const sim = dominoes(bars, { wall });
@@ -110,4 +111,13 @@ test('completion effect: unknown values fall back to the default; the options st
     assert.equal(ids.at(-1), "random");
     assert.equal(new Set(ids).size, ids.length);
   }
+});
+
+test('checked effect: unknown values fall back to the ripple, the older eye and glow mean read and scan; "不要" first, "随机" last', () => {
+  assert.equal(seenFxOf({}), "ripple");
+  assert.equal(seenFxOf({ seenFx: "seal" }), "seal");
+  assert.equal(seenFxOf({ seenFx: "eye" }), "read");
+  assert.equal(seenFxOf({ seenFx: "glow" }), "scan");
+  assert.equal(seenFxOf({ seenFx: "nonsense" }), "ripple");
+  assert.deepEqual(seenFxOptions().map(([id]) => id), ["none", "ripple", "read", "seal", "scan", "random"]);
 });
